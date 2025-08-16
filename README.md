@@ -265,6 +265,6 @@ Only half/some of my buttons do anything -> Double-check your common ground betw
 
 ### Contact
 
-Discord: Arte#9281
+Discord: artessbm
 
 Twitter: https://twitter.com/SSBM_Arte

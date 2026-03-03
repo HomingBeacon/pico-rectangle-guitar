@@ -52,6 +52,11 @@ int main() {
 
     gpio_init(USB_POWER_PIN);
     gpio_set_dir(USB_POWER_PIN, GPIO_IN);
+    #ifdef SG_GUITAR
+    // Pull high so USB mode is the default when GP24 isn't wired to VBUS.
+    // Console detection still works via GP28 (gcDataPin) timing check.
+    gpio_pull_up(USB_POWER_PIN);
+    #endif
 
     #if USE_UART0
     // Initialise UART 0

@@ -117,7 +117,7 @@ int main() {
             });
         }
 
-        // Default: Melee
+        // Else: SG / Melee
         CommunicationProtocols::Joybus::enterMode(gcDataPin, [](){
             GCReport report = DACAlgorithms::MeleeF1::getGCReport(GpioToButtonSets::SG::defaultConversion());
             uint8_t whammy = GpioToButtonSets::SG::readWhammy();
@@ -126,7 +126,7 @@ int main() {
         });
     }
 
-    // USB modes:
+    // Else:
 
     // Red (GP3): Melee / XInput
     if (!gpio_get(3)) USBConfigurations::Xbox360::enterMode([](){

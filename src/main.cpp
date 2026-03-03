@@ -133,10 +133,13 @@ int main() {
 
     sg_usb_modes:
 
-    // Blink LED to indicate entering USB mode
-    gpio_put(LED_PIN, 0);
-    busy_wait_ms(100);
-    gpio_put(LED_PIN, 1);
+    // 3 quick blinks to confirm firmware reached USB mode selection
+    for (int i = 0; i < 3; i++) {
+        gpio_put(LED_PIN, 0);
+        busy_wait_ms(150);
+        gpio_put(LED_PIN, 1);
+        busy_wait_ms(150);
+    }
 
     // Red (GP3): Melee / XInput
     if (!gpio_get(3)) USBConfigurations::Xbox360::enterMode([](){

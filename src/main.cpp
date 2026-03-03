@@ -30,8 +30,8 @@
 #include "other/runtime_remapping_mode.hpp"
 
 int main() {
-
-    set_sys_clock_khz(1000*us, true);
+    set_sys_clock_khz(133000, true);
+   // set_sys_clock_khz(1000*us, true);
     stdio_init_all();
 
     gpio_init(LED_PIN);

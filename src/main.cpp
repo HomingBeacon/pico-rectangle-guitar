@@ -82,6 +82,7 @@ int main() {
     if (!gpio_get(17)) Other::enterRuntimeRemappingMode();
     #endif
     
+    #ifndef SG_GUITAR
     gpio_init(gcDataPin);
     gpio_set_dir(gcDataPin, GPIO_IN);
     gpio_pull_up(gcDataPin);
@@ -91,13 +92,13 @@ int main() {
     while ( time_us_32() - origin < 500'000 ) {
         if (!gpio_get(gcDataPin)) goto stateLabel__forceJoybusEntry;
     }
-    
+    #endif
+
     /* Mode selection logic */
 
 #ifdef SG_GUITAR
 
-    // SG: Console detection via GP28 data-line timing only (no GP24/VBUS wire needed).
-    // The goto from the GP28 check above is the only entry to Joybus mode.
+    // SG: No GP28 joybus detection — go straight to USB modes.
     goto sg_usb_modes;
 
     stateLabel__forceJoybusEntry:

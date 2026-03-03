@@ -57,9 +57,12 @@ foreach(ULT_OPTION ${ULT_OPTIONS})
   # Link libraries for the current option
   target_link_libraries(${TARGET_NAME} pico_stdlib hardware_pio pico_time pico_bootrom hardware_resets hardware_timer hardware_irq hardware_sync hardware_flash)
   
+  # Disable stdio USB to prevent conflicts with custom USB implementation
+  pico_enable_stdio_usb(${TARGET_NAME} 0)
+
   # Add extra outputs for the current option
   pico_add_extra_outputs(${TARGET_NAME})
-  
+
 endforeach()
 
 # SG Guitar build targets
@@ -99,6 +102,9 @@ foreach(ULT_OPTION ${ULT_OPTIONS})
   )
 
   target_link_libraries(${SG_TARGET_NAME} pico_stdlib hardware_pio pico_time pico_bootrom hardware_resets hardware_timer hardware_irq hardware_sync hardware_flash hardware_adc)
+
+  # Disable stdio USB to prevent conflicts with custom USB implementation
+  pico_enable_stdio_usb(${SG_TARGET_NAME} 0)
 
   pico_add_extra_outputs(${SG_TARGET_NAME})
 

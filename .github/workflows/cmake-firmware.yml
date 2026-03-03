@@ -35,13 +35,12 @@ jobs:
       name: Checkout pico sdk
       with:
         repository: raspberrypi/pico-sdk
+        ref: 1.5.1
         path: ${{ env.PICO_SDK_DIR }}
     # From https://docs.google.com/document/d/1-Lx3X7zIwRscp6N76_usy5fdwulo6-chML3Xjfz3zaY/
     # CMake assumes the sdk path is relative to the `build` directory.
-    - name: Set pico-sdk path in CMakeLists.
-      run: |
-        sed 's/#set(PICO_SDK_PATH "..\/..\/pico-sdk"/set(PICO_SDK_PATH "..\/pico-sdk"/' -i CMakeLists.txt
-        cat CMakeLists.txt
+    - name: Set pico-sdk path for CMake
+      run: echo "PICO_SDK_PATH=${{ github.workspace }}/pico-sdk" >> $GITHUB_ENV
 
     # From https://datasheets.raspberrypi.com/pico/getting-started-with-pico.pdf
     - name: Update apt and install cmake

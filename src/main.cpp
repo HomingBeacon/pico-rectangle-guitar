@@ -36,7 +36,7 @@ int main() {
 
     gpio_init(LED_PIN);
     gpio_set_dir(LED_PIN, GPIO_OUT);
-    gpio_put(LED_PIN, 0);
+    gpio_put(LED_PIN, 1); // LED on at boot to confirm firmware is running
 
     #ifndef SG_GUITAR
     gpio_init(USB_POWER_PIN);
@@ -131,6 +131,11 @@ int main() {
     });
 
     sg_usb_modes:
+
+    // Blink LED to indicate entering USB mode
+    gpio_put(LED_PIN, 0);
+    busy_wait_ms(100);
+    gpio_put(LED_PIN, 1);
 
     // Red (GP3): Melee / XInput
     if (!gpio_get(3)) USBConfigurations::Xbox360::enterMode([](){

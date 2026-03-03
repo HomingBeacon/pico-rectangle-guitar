@@ -14,6 +14,9 @@
 #include "dac_algorithms/xbox_360.hpp"
 
 #include "gpio_to_button_sets/F1.hpp"
+#ifdef SG_GUITAR
+#include "gpio_to_button_sets/SG.hpp"
+#endif
 
 #include "usb_configurations/gcc_to_usb_adapter.hpp"
 #include "usb_configurations/hid_with_triggers.hpp"
@@ -46,15 +49,21 @@ int main() {
     gpio_set_function(1, GPIO_FUNC_UART);
     #endif
 
-    const uint8_t keyboardPin = 
+    #ifndef SG_GUITAR
+    const uint8_t keyboardPin =
     #if USE_UART0
     3
     #else
     0
     #endif
     ;
+    #endif
 
+    #ifdef SG_GUITAR
+    std::vector<uint8_t> modePins = { 22, 21, 16, 8, 7, 6, 5, 4, 3, 2 };
+    #else
     std::vector<uint8_t> modePins = { 22, 21, 20, 16, 17, 14, 13, 7, 6, 5, 4, 2, keyboardPin }; // DO NOT USE PIN GP15
+    #endif
 
     for (uint8_t modePin : modePins) {
         gpio_init(modePin);
@@ -65,8 +74,10 @@ int main() {
     // 21 - GP16 - BOOTSEL
     if (!gpio_get(16)) reset_usb_boot(0, 0);
 
+    #ifndef SG_GUITAR
     // 22 - GP17 - Up : runtime remapping
     if (!gpio_get(17)) Other::enterRuntimeRemappingMode();
+    #endif
     
     gpio_init(gcDataPin);
     gpio_set_dir(gcDataPin, GPIO_IN);
@@ -79,6 +90,130 @@ int main() {
     }
     
     /* Mode selection logic */
+
+#ifdef SG_GUITAR
+
+    // Not plugged through USB => Joybus
+    if (!gpio_get(USB_POWER_PIN)) {
+        stateLabel__forceJoybusEntry:
+
+        // Green (GP2) or Up Strum (GP7): P+
+        if ((!gpio_get(7)) || (!gpio_get(2))) {
+            CommunicationProtocols::Joybus::enterMode(gcDataPin, [](){
+                GCReport report = DACAlgorithms::ProjectPlusF1::getGCReport(GpioToButtonSets::SG::defaultConversion());
+                uint8_t whammy = GpioToButtonSets::SG::readWhammy();
+                if (whammy > report.analogR) report.analogR = whammy;
+                return report;
+            });
+        }
+
+        // Orange (GP6): Ultimate
+        if (!gpio_get(6)) {
+            CommunicationProtocols::Joybus::enterMode(gcDataPin, [](){
+                GCReport report = DACAlgorithms::UltimateF1::getGCReport(GpioToButtonSets::SG::defaultConversion());
+                uint8_t whammy = GpioToButtonSets::SG::readWhammy();
+                if (whammy > report.analogR) report.analogR = whammy;
+                return report;
+            });
+        }
+
+        // Else: SG / Melee
+        CommunicationProtocols::Joybus::enterMode(gcDataPin, [](){
+            GCReport report = DACAlgorithms::MeleeF1::getGCReport(GpioToButtonSets::SG::defaultConversion());
+            uint8_t whammy = GpioToButtonSets::SG::readWhammy();
+            if (whammy > report.analogR) report.analogR = whammy;
+            return report;
+        });
+    }
+
+    // Else:
+
+    // Red (GP3): Melee / XInput
+    if (!gpio_get(3)) USBConfigurations::Xbox360::enterMode([](){
+        GCReport report = DACAlgorithms::MeleeF1::getGCReport(GpioToButtonSets::SG::defaultConversion());
+        uint8_t whammy = GpioToButtonSets::SG::readWhammy();
+        if (whammy > report.analogR) report.analogR = whammy;
+        USBConfigurations::Xbox360::actuateReportFromGCState(report);
+    });
+
+    // Down Strum (GP8): Xbox360 / XInput
+    if (!gpio_get(8)) USBConfigurations::Xbox360::enterMode([](){
+        DACAlgorithms::Xbox360::actuateXbox360Report(GpioToButtonSets::SG::defaultConversion());
+        uint8_t whammy = GpioToButtonSets::SG::readWhammy();
+        if (whammy > USBConfigurations::Xbox360::xInputReport.rightTrigger)
+            USBConfigurations::Xbox360::xInputReport.rightTrigger = whammy;
+    });
+
+    // Select (GP21): Melee / HID
+    if (!gpio_get(21)) USBConfigurations::HidWithTriggers::enterMode([](){
+        GCReport report = DACAlgorithms::MeleeF1::getGCReport(GpioToButtonSets::SG::defaultConversion());
+        uint8_t whammy = GpioToButtonSets::SG::readWhammy();
+        if (whammy > report.analogR) report.analogR = whammy;
+        USBConfigurations::HidWithTriggers::actuateReportFromGCState(report);
+    });
+
+    // Start (GP22): Ult / HID
+    if (!gpio_get(22)) USBConfigurations::HidWithTriggers::enterMode([](){
+        GCReport report = DACAlgorithms::UltimateF1::getGCReport(GpioToButtonSets::SG::defaultConversion());
+        uint8_t whammy = GpioToButtonSets::SG::readWhammy();
+        if (whammy > report.analogR) report.analogR = whammy;
+        USBConfigurations::HidWithTriggers::actuateReportFromGCState(report);
+    });
+
+    // Green (GP2): P+ / WFPP (Switch)
+    if (!gpio_get(2)) USBConfigurations::WiredFightPadPro::enterMode([](){
+        GCReport report = DACAlgorithms::ProjectPlusF1::getGCReport(GpioToButtonSets::SG::defaultConversion());
+        uint8_t whammy = GpioToButtonSets::SG::readWhammy();
+        if (whammy > report.analogR) report.analogR = whammy;
+        USBConfigurations::WiredFightPadPro::actuateReportFromGCState(report);
+    });
+
+    // Up Strum (GP7): P+ / GCC Adapter
+    if (!gpio_get(7)) USBConfigurations::GccToUsbAdapter::enterMode([](){
+        GCReport report = DACAlgorithms::ProjectPlusF1::getGCReport(GpioToButtonSets::SG::defaultConversion());
+        uint8_t whammy = GpioToButtonSets::SG::readWhammy();
+        if (whammy > report.analogR) report.analogR = whammy;
+        USBConfigurations::GccToUsbAdapter::actuateReportFromGCState(report);
+    });
+
+    // Orange (GP6): Ultimate / GCC Adapter
+    if (!gpio_get(6)) USBConfigurations::GccToUsbAdapter::enterMode([](){
+        GCReport report = DACAlgorithms::UltimateF1::getGCReport(GpioToButtonSets::SG::defaultConversion());
+        uint8_t whammy = GpioToButtonSets::SG::readWhammy();
+        if (whammy > report.analogR) report.analogR = whammy;
+        USBConfigurations::GccToUsbAdapter::actuateReportFromGCState(report);
+    });
+
+    // Blue (GP5): Melee / WFPP (Switch)
+    if (!gpio_get(5)) USBConfigurations::WiredFightPadPro::enterMode([](){
+        GCReport report = DACAlgorithms::MeleeF1::getGCReport(GpioToButtonSets::SG::defaultConversion());
+        uint8_t whammy = GpioToButtonSets::SG::readWhammy();
+        if (whammy > report.analogR) report.analogR = whammy;
+        USBConfigurations::WiredFightPadPro::actuateReportFromGCState(report);
+    });
+
+    // Yellow (GP4): WFPP Default / WFPP (Switch)
+    if (!gpio_get(4)) USBConfigurations::WiredFightPadPro::enterMode([](){
+        DACAlgorithms::WiredFightPadProDefault::actuateWFPPReport(GpioToButtonSets::SG::defaultConversion());
+    });
+
+    // Default: Melee / GCC Adapter
+    USBConfigurations::GccToUsbAdapter::enterMode(
+        [](){
+            GCReport report = DACAlgorithms::MeleeF1::getGCReport(GpioToButtonSets::SG::defaultConversion());
+            uint8_t whammy = GpioToButtonSets::SG::readWhammy();
+            if (whammy > report.analogR) report.analogR = whammy;
+            USBConfigurations::GccToUsbAdapter::actuateReportFromGCState(report);
+        },
+        [](){
+            GCReport report = DACAlgorithms::UltimateF1::getGCReport(GpioToButtonSets::SG::defaultConversion());
+            uint8_t whammy = GpioToButtonSets::SG::readWhammy();
+            if (whammy > report.analogR) report.analogR = whammy;
+            USBConfigurations::GccToUsbAdapter::actuateReportFromGCState(report);
+        }
+    );
+
+#else
 
     // Not plugged through USB =>  Joybus
     if (!gpio_get(USB_POWER_PIN)) {
@@ -95,13 +230,13 @@ int main() {
                 return DACAlgorithms::UltimateF1::getGCReport(GpioToButtonSets::F1::defaultConversion());
             });
         }
-        
+
         // Else: F1 / Melee
         CommunicationProtocols::Joybus::enterMode(gcDataPin, [](){ return DACAlgorithms::MeleeF1::getGCReport(GpioToButtonSets::F1::defaultConversion()); });
     }
 
     // Else:
-    
+
     // 17 - GP13 - CLeft - Melee / XInput
     if (!gpio_get(13)) USBConfigurations::Xbox360::enterMode([](){
         USBConfigurations::Xbox360::actuateReportFromGCState(DACAlgorithms::MeleeF1::getGCReport(GpioToButtonSets::F1::defaultConversion()));
@@ -162,4 +297,6 @@ int main() {
         [](){USBConfigurations::GccToUsbAdapter::actuateReportFromGCState(DACAlgorithms::MeleeF1::getGCReport(GpioToButtonSets::F1::defaultConversion()));},
         [](){USBConfigurations::GccToUsbAdapter::actuateReportFromGCState(DACAlgorithms::UltimateF1::getGCReport(GpioToButtonSets::F1::defaultConversion()));}
         );
+
+#endif
 }

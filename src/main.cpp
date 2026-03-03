@@ -2,6 +2,7 @@
 #include "pico/bootrom.h"
 #include "hardware/gpio.h"
 #include "hardware/timer.h"
+#include "hardware/clocks.h"
 #include <vector>
 
 #include "global.hpp"

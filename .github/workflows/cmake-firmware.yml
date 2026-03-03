@@ -27,7 +27,7 @@ jobs:
     # Doing this could save on a lot of the Action setup time, at the cost of some of the Cache Size (so less artifacts could be stored).
     # https://docs.github.com/en/actions/using-workflows/caching-dependencies-to-speed-up-workflows#usage-limits-and-eviction-policy
     steps:
-    - uses: actions/checkout@v2
+    - uses: actions/checkout@v4
       name: Checkout repository
       with:
         ref: ${{ github.event.pull_request.head.sha }}
@@ -72,7 +72,7 @@ jobs:
     # This generally reduces the uf2 file size between 30-60%.
     # TODO: Tweak artifact retention limit. 90 days is the default and the max, but users can always push an empty commit to their PR to build and download the latest uf2!
     - name: Upload firmware artifact
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: pico_rectangle_${{ github.sha }}.uf2
         path: ${{github.workspace}}/build/pico_rectangle.uf2

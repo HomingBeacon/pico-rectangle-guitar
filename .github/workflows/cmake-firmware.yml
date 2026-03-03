@@ -4,7 +4,7 @@ on:
   push:
     branches: [ master, main ]
   pull_request:
-  workflow_dispatch: # This gives you a manual "Run" button
+  workflow_dispatch:
 
 jobs:
   build-firmware:
@@ -13,19 +13,19 @@ jobs:
     - name: Checkout repository
       uses: actions/checkout@v4
       with:
-        submodules: recursive # CRITICAL: Gets the Joybus/Guitar libraries
+        submodules: recursive # CRITICAL for guitar mods
 
     - name: Checkout pico sdk
       uses: actions/checkout@v4
       with:
         repository: raspberrypi/pico-sdk
         path: pico-sdk
-        submodules: true # Gets the SDK's own dependencies
+        submodules: true
 
-    - name: Install Toolchain
+    - name: Install ARM Toolchain & Build Tools
       run: |
         sudo apt update
-        sudo apt install -y cmake gcc-arm-none-eabi libnewlib-arm-none-eabi libstdc++-arm-none-eabi-newlib build-essential
+        sudo apt install -y cmake gcc-arm-none-eabi libnewlib-arm-none-eabi libstdc++-arm-none-eabi-newlib build-essential ninja-build
 
     - name: Configure and Build
       env:
@@ -33,25 +33,11 @@ jobs:
       run: |
         mkdir build
         cd build
-        cmake ..
-        make -j$(nproc)
+        cmake -G Ninja .. # Using Ninja avoids "Unix Makefiles" errors
+        ninja
 
-    - name: Upload Standard Firmware
+    - name: Upload Firmware
       uses: actions/upload-artifact@v4
       with:
-        name: pico_rectangle_standard
-        path: build/pico_rectangle.uf2
-
-    - name: Upload Ult 2IP SOCD
-      uses: actions/upload-artifact@v4
-      with:
-        name: pico_rectangle_ult_2ip
-        path: build/pico_rectangle_ULT_2IP_WITH_REAC.uf2
-        if-no-files-found: warn # Use warn so it doesn't crash if this specific version didn't build
-
-    - name: Upload Ult Neutral SOCD
-      uses: actions/upload-artifact@v4
-      with:
-        name: pico_rectangle_ult_neutral
-        path: build/pico_rectangle_ULT_NEUTRAL.uf2
-        if-no-files-found: warn
+        name: pico_rectangle_guitar_firmware
+        path: build/*.uf2 # Grabs all versions (Standard, ULT, etc.)

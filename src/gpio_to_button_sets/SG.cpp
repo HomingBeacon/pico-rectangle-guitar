@@ -2,7 +2,7 @@
 
 #include "pico/stdlib.h"
 #include "hardware/adc.h"
-
+#include <cstdint>
 #include "global.hpp"
 
 namespace GpioToButtonSets {

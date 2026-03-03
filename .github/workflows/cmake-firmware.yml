@@ -89,3 +89,21 @@ jobs:
         name: pico_rectangle_ult_neutral_socd_${{ github.sha }}.uf2
         path: ${{github.workspace}}/build/pico_rectangle_ULT_NEUTRAL.uf2
         if-no-files-found: error
+    - name: Upload SG Guitar firmware artifact
+      uses: actions/upload-artifact@v3
+      with:
+        name: pico_rectangle_sg_${{ github.sha }}.uf2
+        path: ${{github.workspace}}/build/pico_rectangle_sg.uf2
+        if-no-files-found: error
+    - name: Upload SG Guitar firmware (Ult with 2IP With Reactivation SOCD) artifact
+      uses: actions/upload-artifact@v3
+      with:
+        name: pico_rectangle_sg_ult_2ip_with_reac_socd_${{ github.sha }}.uf2
+        path: ${{github.workspace}}/build/pico_rectangle_sg_ULT_2IP_WITH_REAC.uf2
+        if-no-files-found: error
+    - name: Upload SG Guitar firmware (Ult with Neutral SOCD) artifact
+      uses: actions/upload-artifact@v3
+      with:
+        name: pico_rectangle_sg_ult_neutral_socd_${{ github.sha }}.uf2
+        path: ${{github.workspace}}/build/pico_rectangle_sg_ULT_NEUTRAL.uf2
+        if-no-files-found: error

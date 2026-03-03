@@ -38,12 +38,9 @@ int main() {
     gpio_set_dir(LED_PIN, GPIO_OUT);
     gpio_put(LED_PIN, 0);
 
+    #ifndef SG_GUITAR
     gpio_init(USB_POWER_PIN);
     gpio_set_dir(USB_POWER_PIN, GPIO_IN);
-    #ifdef SG_GUITAR
-    // Pull high so USB mode is the default when GP24 isn't wired to VBUS.
-    // Console detection still works via GP28 (gcDataPin) timing check.
-    gpio_pull_up(USB_POWER_PIN);
     #endif
 
     #if USE_UART0
@@ -99,40 +96,41 @@ int main() {
 
 #ifdef SG_GUITAR
 
-    // Not plugged through USB => Joybus
-    if (!gpio_get(USB_POWER_PIN)) {
-        stateLabel__forceJoybusEntry:
+    // SG: Console detection via GP28 data-line timing only (no GP24/VBUS wire needed).
+    // The goto from the GP28 check above is the only entry to Joybus mode.
+    goto sg_usb_modes;
 
-        // Green (GP2) or Up Strum (GP7): P+
-        if ((!gpio_get(7)) || (!gpio_get(2))) {
-            CommunicationProtocols::Joybus::enterMode(gcDataPin, [](){
-                GCReport report = DACAlgorithms::ProjectPlusF1::getGCReport(GpioToButtonSets::SG::defaultConversion());
-                uint8_t whammy = GpioToButtonSets::SG::readWhammy();
-                if (whammy > report.analogR) report.analogR = whammy;
-                return report;
-            });
-        }
+    stateLabel__forceJoybusEntry:
 
-        // Orange (GP6): Ultimate
-        if (!gpio_get(6)) {
-            CommunicationProtocols::Joybus::enterMode(gcDataPin, [](){
-                GCReport report = DACAlgorithms::UltimateF1::getGCReport(GpioToButtonSets::SG::defaultConversion());
-                uint8_t whammy = GpioToButtonSets::SG::readWhammy();
-                if (whammy > report.analogR) report.analogR = whammy;
-                return report;
-            });
-        }
-
-        // Else: SG / Melee
+    // Green (GP2) or Up Strum (GP7): P+
+    if ((!gpio_get(7)) || (!gpio_get(2))) {
         CommunicationProtocols::Joybus::enterMode(gcDataPin, [](){
-            GCReport report = DACAlgorithms::MeleeF1::getGCReport(GpioToButtonSets::SG::defaultConversion());
+            GCReport report = DACAlgorithms::ProjectPlusF1::getGCReport(GpioToButtonSets::SG::defaultConversion());
             uint8_t whammy = GpioToButtonSets::SG::readWhammy();
             if (whammy > report.analogR) report.analogR = whammy;
             return report;
         });
     }
 
-    // Else:
+    // Orange (GP6): Ultimate
+    if (!gpio_get(6)) {
+        CommunicationProtocols::Joybus::enterMode(gcDataPin, [](){
+            GCReport report = DACAlgorithms::UltimateF1::getGCReport(GpioToButtonSets::SG::defaultConversion());
+            uint8_t whammy = GpioToButtonSets::SG::readWhammy();
+            if (whammy > report.analogR) report.analogR = whammy;
+            return report;
+        });
+    }
+
+    // Else: SG / Melee
+    CommunicationProtocols::Joybus::enterMode(gcDataPin, [](){
+        GCReport report = DACAlgorithms::MeleeF1::getGCReport(GpioToButtonSets::SG::defaultConversion());
+        uint8_t whammy = GpioToButtonSets::SG::readWhammy();
+        if (whammy > report.analogR) report.analogR = whammy;
+        return report;
+    });
+
+    sg_usb_modes:
 
     // Red (GP3): Melee / XInput
     if (!gpio_get(3)) USBConfigurations::Xbox360::enterMode([](){

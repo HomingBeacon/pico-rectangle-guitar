@@ -5,9 +5,12 @@ set(PICO_SDK_FETCH_FROM_GIT 1)
 
 include(pico_sdk_import.cmake)
 
+project(pico_rectangle C CXX ASM) 
+
 pico_sdk_init()
 
-project(pico_rectangle CXX C)
+##  project(pico_rectangle CXX C)
+
 include_directories(include pico-joybus-comms/include)
 
 # Define the options as a list

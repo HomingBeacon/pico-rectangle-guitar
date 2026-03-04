@@ -14,16 +14,16 @@ struct PinMapping {
 };
 
 const PinMapping pinMappings[] = {
-    { 2, &ButtonSet::a },       // Green fret
-    { 3, &ButtonSet::left },    // Red fret
-    { 4, &ButtonSet::down },    // Yellow fret
-    { 5, &ButtonSet::right },   // Blue fret
-    { 6, &ButtonSet::b },       // Orange fret
-    { 7, &ButtonSet::ls },      // Up strum
-    { 8, &ButtonSet::up },      // Down strum
-    { 15, &ButtonSet::r },      // Button under whammy
-    { 17, &ButtonSet::z },      // Tilt
-    { 21, &ButtonSet::mx },     // Select
+    { 2, &ButtonSet::a },       // Green fret  -> A
+    { 3, &ButtonSet::up },      // Red fret    -> Left stick up
+    { 4, &ButtonSet::down },    // Yellow fret -> Left stick down
+    { 5, &ButtonSet::b },       // Blue fret   -> B
+    { 6, &ButtonSet::l },       // Orange fret -> L
+    { 7, &ButtonSet::left },    // Up strum    -> Left stick left
+    { 8, &ButtonSet::right },   // Down strum  -> Left stick right
+    { 15, &ButtonSet::r },      // Button under whammy -> R
+    { 17, &ButtonSet::z },      // Tilt        -> Z
+    { 21, &ButtonSet::mx },     // Select      -> ModX
     { 22, &ButtonSet::start },  // Start
 };
 

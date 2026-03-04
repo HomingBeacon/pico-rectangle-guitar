@@ -63,8 +63,9 @@ uint8_t readWhammy() {
     adc_select_input(0); // ADC0 = GP26
     uint16_t raw = adc_read(); // 12-bit: 0-4095
     uint8_t scaled = (uint8_t)(raw >> 4); // Scale to 0-255
-    // Dead zone to suppress potentiometer noise at rest
-    return scaled < 10 ? 0 : scaled;
+    // Invert: pot is wired so rest position reads high, pressed reads low.
+    // Calibration deadzone in whammyToLightshield handles noise at rest.
+    return 255 - scaled;
 }
 
 }

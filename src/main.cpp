@@ -81,7 +81,7 @@ int main() {
     // 22 - GP17 - Up : runtime remapping
     if (!gpio_get(17)) Other::enterRuntimeRemappingMode();
     #endif
-    
+
     #ifndef SG_GUITAR
     gpio_init(gcDataPin);
     gpio_set_dir(gcDataPin, GPIO_IN);
@@ -94,11 +94,36 @@ int main() {
     }
     #endif
 
+    #ifdef SG_GUITAR
+    // SG: Detect GC console via GP28 data-line activity.
+    // A real joybus poll produces 24+ falling edges per command (~100us).
+    // Count falling edges to filter noise from floating/coupled pin.
+    gpio_init(gcDataPin);
+    gpio_set_dir(gcDataPin, GPIO_IN);
+    gpio_pull_up(gcDataPin);
+
+    {
+        uint32_t origin = time_us_32();
+        int fallingEdges = 0;
+        bool lastState = true;
+
+        while (time_us_32() - origin < 100'000); // 100ms for pull-up to stabilize
+
+        while (time_us_32() - origin < 500'000) { // 400ms detection window
+            bool state = gpio_get(gcDataPin);
+            if (lastState && !state) {
+                fallingEdges++;
+                if (fallingEdges >= 10) goto stateLabel__forceJoybusEntry;
+            }
+            lastState = state;
+        }
+    }
+    #endif
+
     /* Mode selection logic */
 
 #ifdef SG_GUITAR
 
-    // SG: No GP28 joybus detection — go straight to USB modes.
     goto sg_usb_modes;
 
     stateLabel__forceJoybusEntry:

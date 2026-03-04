@@ -95,29 +95,11 @@ int main() {
     #endif
 
     #ifdef SG_GUITAR
-    // SG: Detect GC console via GP28 data-line activity.
-    // A real joybus poll produces 24+ falling edges per command (~100us).
-    // Count falling edges to filter noise from floating/coupled pin.
-    gpio_init(gcDataPin);
-    gpio_set_dir(gcDataPin, GPIO_IN);
-    gpio_pull_up(gcDataPin);
-
-    {
-        uint32_t origin = time_us_32();
-        int fallingEdges = 0;
-        bool lastState = true;
-
-        while (time_us_32() - origin < 100'000); // 100ms for pull-up to stabilize
-
-        while (time_us_32() - origin < 500'000) { // 400ms detection window
-            bool state = gpio_get(gcDataPin);
-            if (lastState && !state) {
-                fallingEdges++;
-                if (fallingEdges >= 10) goto stateLabel__forceJoybusEntry;
-            }
-            lastState = state;
-        }
-    }
+    // SG: Hold Down Strum (GP8) at boot to enter console/joybus mode.
+    // GP28 auto-detection is unreliable on this hardware (noise false-triggers
+    // on PC, and timing is fragile on console). Button hold is deterministic.
+    // GP28 init is handled by Joybus::enterMode when actually entering joybus.
+    if (!gpio_get(8)) goto stateLabel__forceJoybusEntry;
     #endif
 
     /* Mode selection logic */

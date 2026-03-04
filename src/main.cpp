@@ -110,6 +110,13 @@ int main() {
 
     stateLabel__forceJoybusEntry:
 
+    // LED OFF = joybus mode entered, waiting for console.
+    // LED turns back ON when first probe is received (confirms GP28 data line works).
+    gpio_put(LED_PIN, 0);
+
+    // Pre-init SG GPIO/ADC so the first joybus poll isn't delayed by lazy init.
+    GpioToButtonSets::SG::defaultConversion();
+
     // Green (GP2) or Up Strum (GP7): P+
     if ((!gpio_get(7)) || (!gpio_get(2))) {
         CommunicationProtocols::Joybus::enterMode(gcDataPin, [](){

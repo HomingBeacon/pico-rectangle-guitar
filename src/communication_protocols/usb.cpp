@@ -795,11 +795,25 @@ void ep_in_handler(uint8_t *buf, uint16_t len) {
     ep1_in_handler_happened = true;
 }
 
+// OUT endpoint receive buffer for config mode
+volatile uint8_t epOutRecvBuf[64];
+volatile uint8_t epOutRecvLen = 0;
+volatile bool epOutRecvReady = false;
+static uint16_t epOutRearmSize = 5;
+
 void ep_out_handler(uint8_t *buf, uint16_t len) {
-    if (len==5) {
+    // Copy to receive buffer for config mode (or any custom handler)
+    if (!epOutRecvReady && len > 0) {
+        uint16_t copyLen = len > 64 ? 64 : len;
+        memcpy((void*)epOutRecvBuf, buf, copyLen);
+        epOutRecvLen = copyLen;
+        epOutRecvReady = true;
+    }
+    // Default rumble handling
+    if (len == 5) {
         gpio_put(rumblePin, !!buf[1]); //TODO XInput support
     }
-    usb_start_transfer(usb_get_endpoint_configuration(ep_out_addr()), NULL, 5);
+    usb_start_transfer(usb_get_endpoint_configuration(ep_out_addr()), NULL, epOutRearmSize);
 }
 
 /**
@@ -1154,6 +1168,11 @@ void enterMode(ConfigurationNoFunc configNoFunc, FuncsDOP funcsDOP, int headroom
 
         usb_start_transfer(usb_get_endpoint_configuration(ep_in_addr()), configNoFunc.hidReportPtr, configNoFunc.inEpActualPacketSize);
     }
+}
+
+void initMode(ConfigurationNoFunc config) {
+    epOutRearmSize = config.outEpMaxPacketSize;
+    inner_enterMode(config, 0);
 }
 
 }

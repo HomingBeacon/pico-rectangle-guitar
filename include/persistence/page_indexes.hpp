@@ -4,7 +4,8 @@
 enum class PageIndexes : int {
     MASTER = 0,
     RUNTIME_REMAPPING = 1,
-    WHAMMY_CALIBRATION = 2
+    WHAMMY_CALIBRATION = 2,
+    SG_BINDS = 3
 };
 
 #endif

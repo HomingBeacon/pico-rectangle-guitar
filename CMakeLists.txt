@@ -90,6 +90,7 @@ foreach(ULT_OPTION ${ULT_OPTIONS})
     src/dac_algorithms/xbox_360.cpp
     src/gpio_to_button_sets/F1.cpp
     src/gpio_to_button_sets/SG.cpp
+    src/usb_configurations/configurator.cpp
     src/other/runtime_remapping_mode.cpp
   )
 

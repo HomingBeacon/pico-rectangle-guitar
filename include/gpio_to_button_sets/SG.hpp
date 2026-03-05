@@ -9,8 +9,17 @@ namespace SG {
 
 using ButtonSet = GpioToButtonSets::F1::ButtonSet;
 
+void initDefaultConversion();
 ButtonSet defaultConversion();
 uint8_t readWhammy();
+
+// Bind management (for configurator)
+void loadBinds();
+uint8_t getBindPin(int slot);
+uint8_t getBindButton(int slot);
+void setBindButton(int slot, uint8_t buttonIndex);
+void saveBinds();
+void resetBinds();
 
 }
 }

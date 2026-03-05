@@ -23,6 +23,7 @@
 #include "gpio_to_button_sets/SG.hpp"
 #include "persistence/functions.hpp"
 #include "persistence/pages/whammy_calibration.hpp"
+#include "usb_configurations/configurator.hpp"
 #endif
 
 #include "usb_configurations/gcc_to_usb_adapter.hpp"
@@ -141,6 +142,12 @@ int main() {
         busy_wait_ms(1000);
         watchdog_reboot(0, 0, 0); // Clean reboot into normal firmware
         while (1) tight_loop_contents();
+    }
+
+    // SG: Hold Select+Start (GP21+GP22) at boot to enter USB configurator mode.
+    // Enumerates as a vendor HID device; use configurator.html to connect.
+    if (!gpio_get(21) && !gpio_get(22)) {
+        USBConfigurations::Configurator::enterMode();
     }
 
     // SG: Hold Down Strum (GP8) at boot to enter console/joybus mode.

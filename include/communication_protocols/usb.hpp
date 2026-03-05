@@ -41,7 +41,23 @@ struct FuncsDOP {
 void enterMode(Configuration, int headroomUs = 120);
 void enterMode(ConfigurationNoFunc, FuncsDOP, int headroomUs = 120);
 
+// Initialize USB device without entering a polling loop.
+// Used by config mode to run its own custom loop.
+void initMode(ConfigurationNoFunc config);
+
 }
 }
+
+// Low-level USB functions exposed for config mode
+extern volatile bool ep1_in_handler_happened;
+uint8_t ep_in_addr();
+struct usb_endpoint_configuration;
+usb_endpoint_configuration *usb_get_endpoint_configuration(uint8_t addr);
+void usb_start_transfer(usb_endpoint_configuration *ep, const uint8_t *buf, uint16_t len);
+
+// OUT endpoint receive buffer for config mode
+extern volatile uint8_t epOutRecvBuf[64];
+extern volatile uint8_t epOutRecvLen;
+extern volatile bool epOutRecvReady;
 
 #endif

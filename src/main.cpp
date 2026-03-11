@@ -150,11 +150,10 @@ int main() {
         USBConfigurations::Configurator::enterMode();
     }
 
-    // SG: Hold Down Strum (GP8) at boot to enter console/joybus mode.
-    // GP28 auto-detection is unreliable on this hardware (noise false-triggers
-    // on PC, and timing is fragile on console). Button hold is deterministic.
-    // GP28 init is handled by Joybus::enterMode when actually entering joybus.
-    if (!gpio_get(8)) goto stateLabel__forceJoybusEntry;
+    // SG: Hold Down Strum + Up Strum (GP8+GP7) at boot to enter console/joybus mode.
+    // Requires both strums held simultaneously to prevent accidental entry from
+    // floating pins. USB is the default when no combo is held.
+    if (!gpio_get(8) && !gpio_get(7)) goto stateLabel__forceJoybusEntry;
     #endif
 
     /* Mode selection logic */

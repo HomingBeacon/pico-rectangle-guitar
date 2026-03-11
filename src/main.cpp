@@ -23,6 +23,7 @@
 #include "gpio_to_button_sets/SG.hpp"
 #include "persistence/functions.hpp"
 #include "persistence/pages/whammy_calibration.hpp"
+#include "persistence/pages/sg_binds.hpp"
 #include "usb_configurations/configurator.hpp"
 #endif
 
@@ -148,6 +149,15 @@ int main() {
     // Enumerates as a vendor HID device; use configurator.html to connect.
     if (!gpio_get(21) && !gpio_get(22)) {
         USBConfigurations::Configurator::enterMode();
+    }
+
+    // SG: First boot — if binds have never been configured, auto-enter configurator
+    // so the user can set up their layout before playing.
+    {
+        const auto* binds = Persistence::read<Persistence::Pages::SgBinds>();
+        if (binds->configured != 1) {
+            USBConfigurations::Configurator::enterMode();
+        }
     }
 
     // SG: Hold Down Strum + Orange fret (GP8+GP6) at boot to enter console/joybus mode.

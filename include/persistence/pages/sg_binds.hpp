@@ -25,6 +25,19 @@ struct SgBinds {
 // 16=cLeft, 17=cRight, 18=cUp, 19=cDown
 #define NUM_BUTTON_NAMES 20
 
+// Slot index definitions (physical input identity)
+#define SLOT_GREEN      0
+#define SLOT_RED        1
+#define SLOT_YELLOW     2
+#define SLOT_BLUE       3
+#define SLOT_ORANGE     4
+#define SLOT_UP_STRUM   5
+#define SLOT_DOWN_STRUM 6
+#define SLOT_R_BUTTON   7
+#define SLOT_TILT       8
+#define SLOT_SELECT     9
+#define SLOT_START      10
+
 }
 }
 

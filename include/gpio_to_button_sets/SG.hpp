@@ -18,6 +18,7 @@ void loadBinds();
 uint8_t getBindPin(int slot);
 uint8_t getBindButton(int slot);
 void setBindButton(int slot, uint8_t buttonIndex);
+void setBindPin(int slot, uint8_t pin);
 void saveBinds();
 void resetBinds();
 

@@ -62,9 +62,47 @@ svg.guitar { width: 100%; height: auto; }
 .cal-input { width: 70px; background: #0a0a1a; color: #e0e0e0; border: 1px solid #333; border-radius: 4px; padding: 6px 8px; font-size: 13px; text-align: center; }
 .cal-auto { margin-top: 8px; font-size: 12px; color: #888; }
 .cal-auto em { color: #e94560; }
+
+/* Pin setup wizard */
+.wizard-overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.85); display: flex; align-items: center; justify-content: center; z-index: 100; }
+.wizard-overlay.hidden { display: none; }
+.wizard-box { background: #16213e; border-radius: 16px; padding: 32px 40px; border: 2px solid #e94560; max-width: 480px; width: 90%; text-align: center; }
+.wizard-box h2 { color: #e94560; font-size: 22px; margin-bottom: 8px; }
+.wizard-box .wizard-subtitle { color: #888; font-size: 13px; margin-bottom: 24px; }
+.wizard-step { font-size: 14px; color: #888; margin-bottom: 8px; }
+.wizard-prompt { font-size: 28px; font-weight: 700; margin-bottom: 8px; padding: 20px; }
+.wizard-prompt.green { color: #27ae60; }
+.wizard-prompt.red { color: #e74c3c; }
+.wizard-prompt.yellow { color: #f1c40f; }
+.wizard-prompt.blue { color: #3498db; }
+.wizard-prompt.orange { color: #e67e22; }
+.wizard-prompt.neutral { color: #e0e0e0; }
+.wizard-prompt.purple { color: #9b59b6; }
+.wizard-detected { font-size: 16px; color: #2ecc71; margin-top: 12px; min-height: 24px; }
+.wizard-progress { display: flex; gap: 6px; justify-content: center; margin-top: 20px; }
+.wizard-dot { width: 10px; height: 10px; border-radius: 50%; background: #333; }
+.wizard-dot.done { background: #2ecc71; }
+.wizard-dot.current { background: #e94560; }
+.wizard-actions { margin-top: 20px; display: flex; gap: 8px; justify-content: center; }
 </style>
 </head>
 <body>
+
+<!-- Pin Setup Wizard Overlay -->
+<div class="wizard-overlay hidden" id="wizardOverlay">
+    <div class="wizard-box">
+        <h2>Pin Setup</h2>
+        <p class="wizard-subtitle">Press each input on your guitar to map it.</p>
+        <p class="wizard-step" id="wizardStep">Step 1 of 11</p>
+        <div class="wizard-prompt neutral" id="wizardPrompt">Press your Green Fret</div>
+        <p class="wizard-detected" id="wizardDetected"></p>
+        <div class="wizard-progress" id="wizardProgress"></div>
+        <div class="wizard-actions">
+            <button class="btn btn-secondary" onclick="skipWizardStep()">Skip</button>
+            <button class="btn btn-danger" onclick="closeWizard()">Cancel</button>
+        </div>
+    </div>
+</div>
 
 <div class="header">
     <h1>SG Guitar Configurator</h1>
@@ -156,6 +194,7 @@ svg.guitar { width: 100%; height: auto; }
         <div class="actions">
             <button class="btn btn-primary" onclick="saveBinds()" id="saveBindsBtn" disabled>Save Binds</button>
             <button class="btn btn-danger" onclick="resetBinds()" id="resetBindsBtn" disabled>Reset Defaults</button>
+            <button class="btn btn-secondary" onclick="startWizard()" id="pinSetupBtn" disabled>Pin Setup</button>
         </div>
 
         <div class="cal-section">
@@ -189,6 +228,7 @@ const CMD_SET_BIND         = 0x02;
 const CMD_SAVE_BINDS       = 0x03;
 const CMD_RESET_BINDS      = 0x04;
 const CMD_RESET_WHAMMY_CAL = 0x05;
+const CMD_SET_BIND_PIN     = 0x06;
 
 const REPORT_SIZE = 32;
 
@@ -206,6 +246,12 @@ const SLOT_NAMES = [
     'Select', 'Start'
 ];
 
+const SLOT_COLORS = [
+    'green', 'red', 'yellow', 'blue', 'orange',
+    'neutral', 'neutral', 'neutral', 'purple',
+    'neutral', 'neutral'
+];
+
 const NUM_SLOTS = 11;
 
 let device = null;
@@ -213,6 +259,121 @@ let connected = false;
 let liveWhammy = 0;
 let currentBinds = new Array(NUM_SLOTS).fill(0);
 let currentPins = new Array(NUM_SLOTS).fill(0);
+let detectedPressedPin = 0xFF;
+let bindsConfigured = false;
+let firstBootHandled = false;
+
+// --- Pin Setup Wizard ---
+let wizardActive = false;
+let wizardStep = 0;
+let wizardAssignedPins = new Array(NUM_SLOTS).fill(0xFF);
+let wizardWaitingForRelease = false;
+
+function startWizard() {
+    wizardActive = true;
+    wizardStep = 0;
+    wizardAssignedPins.fill(0xFF);
+    wizardWaitingForRelease = false;
+    document.getElementById('wizardOverlay').classList.remove('hidden');
+    updateWizardUI();
+}
+
+function closeWizard() {
+    wizardActive = false;
+    document.getElementById('wizardOverlay').classList.add('hidden');
+}
+
+function skipWizardStep() {
+    // Keep the current/default pin for this slot
+    wizardAssignedPins[wizardStep] = currentPins[wizardStep];
+    wizardStep++;
+    if (wizardStep >= NUM_SLOTS) {
+        finishWizard();
+    } else {
+        wizardWaitingForRelease = false;
+        updateWizardUI();
+    }
+}
+
+function updateWizardUI() {
+    document.getElementById('wizardStep').textContent = `Step ${wizardStep + 1} of ${NUM_SLOTS}`;
+
+    const prompt = document.getElementById('wizardPrompt');
+    prompt.textContent = `Press your ${SLOT_NAMES[wizardStep]}`;
+    prompt.className = `wizard-prompt ${SLOT_COLORS[wizardStep]}`;
+
+    document.getElementById('wizardDetected').textContent = '';
+
+    // Update progress dots
+    const progress = document.getElementById('wizardProgress');
+    progress.innerHTML = '';
+    for (let i = 0; i < NUM_SLOTS; i++) {
+        const dot = document.createElement('div');
+        dot.className = 'wizard-dot';
+        if (i < wizardStep) dot.classList.add('done');
+        if (i === wizardStep) dot.classList.add('current');
+        progress.appendChild(dot);
+    }
+}
+
+function handleWizardInput() {
+    if (!wizardActive) return;
+
+    if (wizardWaitingForRelease) {
+        // Wait until all buttons released before moving to next step
+        if (detectedPressedPin === 0xFF) {
+            wizardWaitingForRelease = false;
+            wizardStep++;
+            if (wizardStep >= NUM_SLOTS) {
+                finishWizard();
+            } else {
+                updateWizardUI();
+            }
+        }
+        return;
+    }
+
+    // Check if a pin is pressed
+    if (detectedPressedPin !== 0xFF) {
+        const pin = detectedPressedPin;
+
+        // Check if this pin is already assigned to a previous slot
+        const prevSlot = wizardAssignedPins.indexOf(pin);
+        if (prevSlot !== -1 && prevSlot < wizardStep) {
+            document.getElementById('wizardDetected').textContent =
+                `GP${pin} is already assigned to ${SLOT_NAMES[prevSlot]}. Press a different button.`;
+            return;
+        }
+
+        // Assign this pin to the current slot
+        wizardAssignedPins[wizardStep] = pin;
+        document.getElementById('wizardDetected').textContent = `Detected GP${pin}`;
+
+        // Send CMD_SET_BIND_PIN to firmware
+        sendSetBindPin(wizardStep, pin);
+
+        wizardWaitingForRelease = true;
+    }
+}
+
+async function sendSetBindPin(slot, pin) {
+    if (!connected || !device) return;
+    const data = new Uint8Array(REPORT_SIZE);
+    data[0] = CMD_SET_BIND_PIN;
+    data[1] = slot;
+    data[2] = pin;
+    await device.sendReport(0, data);
+}
+
+async function finishWizard() {
+    wizardActive = false;
+    document.getElementById('wizardOverlay').classList.add('hidden');
+
+    // Save binds to flash (includes the new pin assignments)
+    await saveBinds();
+}
+
+// --- Main UI ---
 
 // Initialize bind list UI
 function initBindList() {
@@ -270,6 +431,7 @@ async function connect() {
         device.addEventListener('inputreport', handleInputReport);
 
         connected = true;
+        firstBootHandled = false;
         updateUI();
     } catch (e) {
         console.error('Connection failed:', e);
@@ -288,7 +450,7 @@ async function disconnect() {
 
 function handleInputReport(event) {
     const data = new Uint8Array(event.data.buffer);
-    if (data.length < 30) return;
+    if (data.length < 31) return;
 
     // Byte 0: report type (0x01 = status)
     if (data[0] !== 0x01) return;
@@ -312,6 +474,25 @@ function handleInputReport(event) {
     const state0 = data[27];
     const state1 = data[28];
     const state2 = data[29];
+
+    // Byte 30: raw GPIO scan (first pressed candidate pin, 0xFF if none)
+    detectedPressedPin = data[30];
+
+    // Byte 31: binds configured flag
+    bindsConfigured = data[31] === 1;
+
+    // Auto-open wizard on first boot
+    if (!firstBootHandled && connected) {
+        firstBootHandled = true;
+        if (!bindsConfigured) {
+            startWizard();
+        }
+    }
+
+    // Feed wizard input
+    if (wizardActive) {
+        handleWizardInput();
+    }
 
     // Button pressed states (matches the bit layout in firmware)
     const pressed = [
@@ -397,7 +578,7 @@ async function saveBinds() {
 
 async function resetBinds() {
     if (!connected || !device) return;
-    if (!confirm('Reset all bindings to factory defaults?')) return;
+    if (!confirm('Reset all bindings to factory defaults? This will also clear pin assignments and trigger the pin setup wizard on next boot.')) return;
     const data = new Uint8Array(REPORT_SIZE);
     data[0] = CMD_RESET_BINDS;
     await device.sendReport(0, data);
@@ -445,7 +626,7 @@ function updateUI() {
     }
 
     // Enable/disable controls
-    const controls = ['saveBindsBtn', 'resetBindsBtn', 'capHighBtn', 'capLowBtn', 'saveCalBtn', 'resetCalBtn'];
+    const controls = ['saveBindsBtn', 'resetBindsBtn', 'pinSetupBtn', 'capHighBtn', 'capLowBtn', 'saveCalBtn', 'resetCalBtn'];
     controls.forEach(id => {
         document.getElementById(id).disabled = !connected;
     });

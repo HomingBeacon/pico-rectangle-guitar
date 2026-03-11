@@ -88,6 +88,17 @@ void setBindButton(int slot, uint8_t buttonIndex) {
     activePinMappings[slot].ptrToMember = buttonMembers[buttonIndex];
 }
 
+void setBindPin(int slot, uint8_t pin) {
+    if (slot < 0 || slot >= NUM_SG_BIND_SLOTS) return;
+    if (pin > 28) return;
+    if (!bindsLoaded) loadBinds();
+    activePinMappings[slot].pin = pin;
+    // Re-init the new pin as input with pull-up
+    gpio_init(pin);
+    gpio_set_dir(pin, GPIO_IN);
+    gpio_pull_up(pin);
+}
+
 void saveBinds() {
     Persistence::Pages::SgBinds binds = {};
     binds.configured = 1;

@@ -19,6 +19,7 @@ namespace Configurator {
 #define CMD_SAVE_BINDS       0x03
 #define CMD_RESET_BINDS      0x04
 #define CMD_RESET_WHAMMY_CAL 0x05
+#define CMD_SET_BIND_PIN     0x06
 
 // Status report (IN reports to host)
 #define STATUS_REPORT        0x01
@@ -105,6 +106,26 @@ static void buildStatusReport() {
     statusReport[27] = state0;
     statusReport[28] = state1;
     statusReport[29] = state2;
+
+    // Byte 31: binds configured flag (1 = configured, 0 = first boot / unconfigured)
+    const auto* bindPage = Persistence::read<Persistence::Pages::SgBinds>();
+    statusReport[31] = (bindPage->configured == 1) ? 1 : 0;
+
+    // Raw GPIO scan: report which candidate pins are currently pressed (low).
+    // Used by the pin labeling wizard to detect which GPIO a physical input is on.
+    // Pack as a bitmask: byte 30 = pins 0-7, byte 31 = pins 8-22 (shifted).
+    // We only scan safe candidate pins (not LED, ADC, data, BOOTSEL).
+    static const uint8_t candidatePins[] = { 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 17, 20, 21, 22 };
+    uint32_t gpioState = sio_hw->gpio_in;
+    // Find first pressed (low) candidate pin, report its number (0xFF if none)
+    statusReport[30] = 0xFF;
+    for (unsigned i = 0; i < sizeof(candidatePins); i++) {
+        uint8_t p = candidatePins[i];
+        if (!(gpioState & (1u << p))) {
+            statusReport[30] = p;
+            break;
+        }
+    }
 }
 
 static void processCommand(volatile uint8_t *cmd, uint8_t len) {
@@ -137,6 +158,13 @@ static void processCommand(volatile uint8_t *cmd, uint8_t len) {
             GpioToButtonSets::SG::resetBinds();
             break;
         }
+        case CMD_SET_BIND_PIN: {
+            if (len < 3) break;
+            uint8_t slot = cmd[1];
+            uint8_t pin = cmd[2];
+            GpioToButtonSets::SG::setBindPin(slot, pin);
+            break;
+        }
         case CMD_RESET_WHAMMY_CAL: {
             Persistence::Pages::WhammyCalibration cal = {};
             cal.configured = 0xFF;
@@ -150,6 +178,15 @@ static void processCommand(volatile uint8_t *cmd, uint8_t len) {
 }
 
 void enterMode() {
+    // Init all candidate GPIO pins as inputs with pull-ups for raw scanning.
+    // This ensures pin detection works even before binds are configured.
+    static const uint8_t candidatePins[] = { 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 17, 20, 21, 22 };
+    for (unsigned i = 0; i < sizeof(candidatePins); i++) {
+        gpio_init(candidatePins[i]);
+        gpio_set_dir(candidatePins[i], GPIO_IN);
+        gpio_pull_up(candidatePins[i]);
+    }
+
     // Init SG GPIO/ADC
     GpioToButtonSets::SG::initDefaultConversion();
 

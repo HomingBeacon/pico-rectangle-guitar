@@ -81,7 +81,7 @@ ButtonSet defaultConversion() {
 
     if (!init) initDefaultConversion();
 
-    if (remapped) gpio_put(LED_PIN, 1);
+    if (remapped) led_put(1);
     
     ButtonSet f1ButtonSet;
 

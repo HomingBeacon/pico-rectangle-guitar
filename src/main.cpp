@@ -65,25 +65,12 @@ static bool __no_inline_not_in_flash_func(get_bootsel_button)() {
 #endif
 
 int main() {
-
- stdio_init_all();  // If using USB serial
-    gpio_init(25);
-    gpio_set_dir(25, GPIO_OUT);
-    while (true) {  // Or put early in main
-        gpio_put(25, 1);
-        sleep_ms(200);
-        gpio_put(25, 0);
-        sleep_ms(200);
-    }
-
-    
     set_sys_clock_khz(125000, true);
    // set_sys_clock_khz(1000*us, true);
     stdio_init_all();
 
-    gpio_init(LED_PIN);
-    gpio_set_dir(LED_PIN, GPIO_OUT);
-    gpio_put(LED_PIN, 1); // LED on at boot to confirm firmware is running
+    led_init();
+    led_put(1); // LED on at boot to confirm firmware is running
 
     #ifndef SG_GUITAR
     gpio_init(USB_POWER_PIN);
@@ -110,7 +97,7 @@ int main() {
     #endif
 
     #ifdef SG_GUITAR
-    std::vector<uint8_t> modePins = { 22, 21, 16, 8, 7, 6, 5, 4, 3, 2 };
+    std::vector<uint8_t> modePins = { 21, 16, 8, 7, 6, 5, 4, 3, 2 };
     #else
     std::vector<uint8_t> modePins = { 22, 21, 20, 16, 17, 14, 13, 7, 6, 5, 4, 2, keyboardPin }; // DO NOT USE PIN GP15
     #endif
@@ -163,7 +150,7 @@ int main() {
     } else {
         pinGreen = 2; pinRed = 3; pinYellow = 4; pinBlue = 5; pinOrange = 6;
         pinUpStrum = 7; pinDownStrum = 8; pinRButton = 15; pinTilt = 17;
-        pinSelect = 21; pinStart = 22;
+        pinSelect = 21; pinStart = 20;
     }
     // Init configured pins (may differ from default modePins list)
     {
@@ -192,16 +179,16 @@ int main() {
 
         // Wait for Tilt release first
         while (!gpio_get(pinTilt)) {
-            gpio_put(LED_PIN, 0); busy_wait_ms(100);
-            gpio_put(LED_PIN, 1); busy_wait_ms(100);
+            led_put( 0); busy_wait_ms(100);
+            led_put( 1); busy_wait_ms(100);
         }
 
         Persistence::Pages::WhammyCalibration cal = {};
 
         // Blink slowly: waiting for first Green press (high LS whammy position)
         while (gpio_get(pinGreen)) {
-            gpio_put(LED_PIN, 0); busy_wait_ms(500);
-            gpio_put(LED_PIN, 1); busy_wait_ms(500);
+            led_put( 0); busy_wait_ms(500);
+            led_put( 1); busy_wait_ms(500);
         }
         cal.whammyHigh = GpioToButtonSets::SG::readWhammy();
         // Wait for Green release
@@ -209,8 +196,8 @@ int main() {
 
         // Blink fast: waiting for second Green press (low LS whammy position)
         while (gpio_get(pinGreen)) {
-            gpio_put(LED_PIN, 0); busy_wait_ms(150);
-            gpio_put(LED_PIN, 1); busy_wait_ms(150);
+            led_put( 0); busy_wait_ms(150);
+            led_put( 1); busy_wait_ms(150);
         }
         cal.whammyLow = GpioToButtonSets::SG::readWhammy();
         cal.configured = 1;
@@ -219,7 +206,7 @@ int main() {
         Persistence::commit(cal);
 
         // Solid LED for 1 second to confirm, then reboot
-        gpio_put(LED_PIN, 1);
+        led_put( 1);
         busy_wait_ms(1000);
         watchdog_reboot(0, 0, 0); // Clean reboot into normal firmware
         while (1) tight_loop_contents();
@@ -252,7 +239,7 @@ int main() {
 
     // LED OFF = joybus mode entered, waiting for console.
     // LED turns back ON when first probe is received (confirms GP28 data line works).
-    gpio_put(LED_PIN, 0);
+    led_put( 0);
 
     // Pre-init SG GPIO/ADC so the first joybus poll isn't delayed by lazy init.
     GpioToButtonSets::SG::defaultConversion();
@@ -292,9 +279,9 @@ int main() {
 
     // 3 quick blinks to confirm firmware reached USB mode selection
     for (int i = 0; i < 3; i++) {
-        gpio_put(LED_PIN, 0);
+        led_put( 0);
         busy_wait_ms(150);
-        gpio_put(LED_PIN, 1);
+        led_put( 1);
         busy_wait_ms(150);
     }
 

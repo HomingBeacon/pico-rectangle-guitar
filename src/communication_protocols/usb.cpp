@@ -1055,10 +1055,10 @@ void inner_enterMode(ConfigurationNoFunc config, int headroomUs) {
     // Slow blink while waiting for USB enumeration
     // If LED blinks slowly here, USB pull-up is enabled but host can't enumerate
     while (!configured) {
-        gpio_put(25, !gpio_get(25));
+        led_put(!gpio_get(LED_PIN));
         busy_wait_ms(500);
     }
-    gpio_put(25, 1); // LED solid on after enumeration succeeds
+    led_put(1); // LED solid on after enumeration succeeds
 
     /* Start communications */
 

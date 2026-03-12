@@ -66,7 +66,7 @@ void enterMode(int dataPin, std::function<GCReport()> func) {
         buffer[0] = pio_sm_get_blocking(pio, 0);
 
         if (buffer[0] == 0) { // Probe
-            gpio_put(LED_PIN, 1);
+            led_put(1);
             uint8_t probeResponse[3] = { 0x09, 0x00, 0x03 };
             uint32_t result[2];
             int resultLen;
@@ -80,7 +80,7 @@ void enterMode(int dataPin, std::function<GCReport()> func) {
             for (int i = 0; i<resultLen; i++) pio_sm_put_blocking(pio, 0, result[i]);
         }
         else if (buffer[0] == 0x41) { // Origin (NOT 0x81)
-            gpio_put(25, 1);
+            led_put(1);
             uint8_t originResponse[10] = { 0x00, 0x80, 128, 128, 128, 128, 0, 0, 0, 0 };
             uint32_t result[6];
             int resultLen;

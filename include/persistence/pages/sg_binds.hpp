@@ -17,6 +17,8 @@ struct SgBinds {
         uint8_t pin;          // GPIO pin number
         uint8_t buttonIndex;  // Index into button member array (0-19)
     } entries[NUM_SG_BIND_SLOTS];
+    uint16_t pullModes;   // Bitmask: bit i = 1 means slot i uses pull-down (active-high)
+                          // 0 (default) = pull-up (active-low, normal buttons)
 };
 
 // Button index definitions (matches ButtonSet field order)

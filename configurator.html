@@ -55,6 +55,7 @@ svg.guitar { width: 100%; height: auto; }
 .bind-select { flex: 1; background: #16213e; color: #e0e0e0; border: 1px solid #333; border-radius: 4px; padding: 4px 8px; font-size: 13px; }
 .bind-indicator { width: 8px; height: 8px; border-radius: 50%; background: #333; transition: background 0.1s; }
 .bind-indicator.pressed { background: #2ecc71; }
+.bind-pull { background: #16213e; color: #e0e0e0; border: 1px solid #333; border-radius: 4px; padding: 4px; font-size: 11px; width: 50px; }
 
 /* Actions */
 .actions { display: flex; gap: 8px; margin-top: 16px; flex-wrap: wrap; }
@@ -232,6 +233,7 @@ const CMD_SAVE_BINDS       = 0x03;
 const CMD_RESET_BINDS      = 0x04;
 const CMD_RESET_WHAMMY_CAL = 0x05;
 const CMD_SET_BIND_PIN     = 0x06;
+const CMD_SET_PULL_MODE    = 0x07;
 
 const REPORT_SIZE = 32;
 
@@ -262,6 +264,7 @@ let connected = false;
 let liveWhammy = 0;
 let currentBinds = new Array(NUM_SLOTS).fill(0);
 let currentPins = new Array(NUM_SLOTS).fill(0);
+let currentPullModes = new Array(NUM_SLOTS).fill(0); // 0=pull-up, 1=pull-down
 let detectedPressedPin = 0xFF;
 let bindsConfigured = false;
 let firstBootHandled = false;
@@ -438,6 +441,10 @@ function initBindList() {
             <select class="bind-select" id="bind-sel-${i}" onchange="onBindChange(${i}, this.value)" disabled>
                 ${options}
             </select>
+            <select class="bind-pull" id="bind-pull-${i}" onchange="onPullChange(${i}, this.value)" disabled title="Pull mode">
+                <option value="0">Pull↑</option>
+                <option value="1">Pull↓</option>
+            </select>
         `;
         list.appendChild(row);
     }
@@ -447,6 +454,15 @@ function onBindChange(slot, value) {
     if (!connected || !device) return;
     const data = new Uint8Array(REPORT_SIZE);
     data[0] = CMD_SET_BIND;
+    data[1] = slot;
+    data[2] = parseInt(value);
+    device.sendReport(0, data);
+}
+
+function onPullChange(slot, value) {
+    if (!connected || !device) return;
+    const data = new Uint8Array(REPORT_SIZE);
+    data[0] = CMD_SET_PULL_MODE;
     data[1] = slot;
     data[2] = parseInt(value);
     device.sendReport(0, data);
@@ -507,10 +523,12 @@ function handleInputReport(event) {
     const calHigh = data[3];
     const calLow = data[4];
 
-    // Bytes 5-26: binds (11 x 2 bytes: pin, buttonIndex)
+    // Bytes 5-26: binds (11 x 2 bytes: pin, buttonIndex|pullMode<<7)
     for (let i = 0; i < NUM_SLOTS; i++) {
         currentPins[i] = data[5 + i * 2];
-        currentBinds[i] = data[5 + i * 2 + 1];
+        const raw = data[5 + i * 2 + 1];
+        currentBinds[i] = raw & 0x7F;
+        currentPullModes[i] = (raw >> 7) & 1;
     }
 
     // Bytes 27-29: button state
@@ -581,6 +599,11 @@ function handleInputReport(event) {
         }
         const pin = document.getElementById(`bind-pin-${i}`);
         if (pin) pin.textContent = 'GP' + currentPins[i];
+
+        const pull = document.getElementById(`bind-pull-${i}`);
+        if (pull && pull.value != currentPullModes[i]) {
+            pull.value = currentPullModes[i];
+        }
 
         // Update bind label on guitar SVG
         const bindLabel = document.getElementById(`fret-${i}-bind`);
@@ -678,6 +701,8 @@ function updateUI() {
     for (let i = 0; i < NUM_SLOTS; i++) {
         const sel = document.getElementById(`bind-sel-${i}`);
         if (sel) sel.disabled = !connected;
+        const pull = document.getElementById(`bind-pull-${i}`);
+        if (pull) pull.disabled = !connected;
     }
 }
 

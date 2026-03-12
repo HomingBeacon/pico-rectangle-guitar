@@ -13,6 +13,7 @@ namespace SG {
 struct PinMapping {
     uint8_t pin;
     bool ButtonSet::* ptrToMember;
+    bool pullDown;  // true = pull-down (active-high), false = pull-up (active-low)
 };
 
 // Button index to member pointer lookup table
@@ -57,6 +58,7 @@ void loadBinds() {
             if (bi >= NUM_BUTTON_NAMES) bi = defaultButtonIndices[i];
             activePinMappings[i].pin = page->entries[i].pin;
             activePinMappings[i].ptrToMember = buttonMembers[bi];
+            activePinMappings[i].pullDown = (page->pullModes >> i) & 1;
             activeButtonIndices[i] = bi;
         }
     } else {
@@ -93,19 +95,46 @@ void setBindPin(int slot, uint8_t pin) {
     if (pin > 28) return;
     if (!bindsLoaded) loadBinds();
     activePinMappings[slot].pin = pin;
-    // Re-init the new pin as input with pull-up
     gpio_init(pin);
     gpio_set_dir(pin, GPIO_IN);
-    gpio_pull_up(pin);
+    if (activePinMappings[slot].pullDown) {
+        gpio_pull_down(pin);
+    } else {
+        gpio_pull_up(pin);
+    }
+}
+
+uint8_t getBindPullMode(int slot) {
+    if (slot < 0 || slot >= NUM_SG_BIND_SLOTS) return 0;
+    if (!bindsLoaded) loadBinds();
+    return activePinMappings[slot].pullDown ? 1 : 0;
+}
+
+void setBindPullMode(int slot, uint8_t pullDown) {
+    if (slot < 0 || slot >= NUM_SG_BIND_SLOTS) return;
+    if (!bindsLoaded) loadBinds();
+    activePinMappings[slot].pullDown = (pullDown != 0);
+    // Re-init pin with new pull mode
+    uint8_t pin = activePinMappings[slot].pin;
+    gpio_init(pin);
+    gpio_set_dir(pin, GPIO_IN);
+    if (activePinMappings[slot].pullDown) {
+        gpio_pull_down(pin);
+    } else {
+        gpio_pull_up(pin);
+    }
 }
 
 void saveBinds() {
     Persistence::Pages::SgBinds binds = {};
     binds.configured = 1;
+    uint16_t pullModes = 0;
     for (int i = 0; i < NUM_SG_BIND_SLOTS; i++) {
         binds.entries[i].pin = activePinMappings[i].pin;
         binds.entries[i].buttonIndex = activeButtonIndices[i];
+        if (activePinMappings[i].pullDown) pullModes |= (1 << i);
     }
+    binds.pullModes = pullModes;
     Persistence::commit(binds);
 }
 
@@ -128,7 +157,11 @@ void initDefaultConversion() {
     for (int i = 0; i < NUM_SG_BIND_SLOTS; i++) {
         gpio_init(activePinMappings[i].pin);
         gpio_set_dir(activePinMappings[i].pin, GPIO_IN);
-        gpio_pull_up(activePinMappings[i].pin);
+        if (activePinMappings[i].pullDown) {
+            gpio_pull_down(activePinMappings[i].pin);
+        } else {
+            gpio_pull_up(activePinMappings[i].pin);
+        }
     }
 
     // Initialize ADC for whammy on GP26 (ADC0)
@@ -148,7 +181,9 @@ ButtonSet defaultConversion() {
     uint32_t inputSnapshot = sio_hw->gpio_in;
 
     for (int i = 0; i < NUM_SG_BIND_SLOTS; i++) {
-        sgButtonSet.*(activePinMappings[i].ptrToMember) = !(inputSnapshot & (1 << (activePinMappings[i].pin)));
+        bool pinHigh = inputSnapshot & (1 << (activePinMappings[i].pin));
+        // Pull-up (default): pressed = low. Pull-down: pressed = high.
+        sgButtonSet.*(activePinMappings[i].ptrToMember) = activePinMappings[i].pullDown ? pinHigh : !pinHigh;
     }
 
     return sgButtonSet;

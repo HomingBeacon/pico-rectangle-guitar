@@ -20,6 +20,7 @@ namespace Configurator {
 #define CMD_RESET_BINDS      0x04
 #define CMD_RESET_WHAMMY_CAL 0x05
 #define CMD_SET_BIND_PIN     0x06
+#define CMD_SET_PULL_MODE    0x07
 
 // Status report (IN reports to host)
 #define STATUS_REPORT        0x01
@@ -73,10 +74,12 @@ static void buildStatusReport() {
     statusReport[3] = DACAlgorithms::MeleeSG::whammyHigh;
     statusReport[4] = DACAlgorithms::MeleeSG::whammyLow;
 
-    // Button bindings: 11 slots × 2 bytes (pin, buttonIndex)
+    // Button bindings: 11 slots × 2 bytes (pin, buttonIndex | pullMode<<7)
     for (int i = 0; i < NUM_SG_BIND_SLOTS; i++) {
         statusReport[5 + i * 2] = GpioToButtonSets::SG::getBindPin(i);
-        statusReport[5 + i * 2 + 1] = GpioToButtonSets::SG::getBindButton(i);
+        uint8_t bi = GpioToButtonSets::SG::getBindButton(i);
+        uint8_t pm = GpioToButtonSets::SG::getBindPullMode(i);
+        statusReport[5 + i * 2 + 1] = bi | (pm << 7);
     }
     // Bytes 5-26 = 11 × 2 = 22 bytes of bind data
 
@@ -163,6 +166,13 @@ static void processCommand(volatile uint8_t *cmd, uint8_t len) {
             uint8_t slot = cmd[1];
             uint8_t pin = cmd[2];
             GpioToButtonSets::SG::setBindPin(slot, pin);
+            break;
+        }
+        case CMD_SET_PULL_MODE: {
+            if (len < 3) break;
+            uint8_t slot = cmd[1];
+            uint8_t pullDown = cmd[2]; // 0 = pull-up, 1 = pull-down
+            GpioToButtonSets::SG::setBindPullMode(slot, pullDown);
             break;
         }
         case CMD_RESET_WHAMMY_CAL: {

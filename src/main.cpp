@@ -108,9 +108,14 @@ int main() {
         gpio_pull_up(modePin);
     }
 
+    #ifdef SG_GUITAR
     // 21 - GP16 - Hold low at boot to enter USB configurator mode.
     // Wire a button from GP16 to GND, or short with a jumper.
     if (!gpio_get(16)) USBConfigurations::Configurator::enterMode();
+    #else
+    // 21 - GP16 - BOOTSEL
+    if (!gpio_get(16)) reset_usb_boot(0, 0);
+    #endif
 
     #ifndef SG_GUITAR
     // 22 - GP17 - Up : runtime remapping

@@ -4,6 +4,8 @@
 #include "hardware/gpio.h"
 #include "hardware/timer.h"
 #include "hardware/clocks.h"
+#include "hardware/structs/ioqspi.h"
+#include "hardware/sync.h"
 #include <vector>
 
 #include "global.hpp"
@@ -38,6 +40,30 @@
 
 #include "other/runtime_remapping_mode.hpp"
 #include "pico/stdlib.h"
+
+#ifdef SG_GUITAR
+// Read the BOOTSEL button without disrupting flash operation.
+// Must not be in flash (XIP) since we temporarily disable flash CS.
+static bool __no_inline_not_in_flash_func(get_bootsel_button)() {
+    const uint CS_PIN_INDEX = 1;
+    uint32_t flags = save_and_disable_interrupts();
+    // Drive QSPI CS pin low so it doesn't float (flash stays deselected)
+    hw_write_masked(&ioqspi_hw->io[CS_PIN_INDEX].ctrl,
+                    GPIO_OVERRIDE_LOW << IO_QSPI_GPIO_QSPI_SS_CTRL_OEOVER_LSB,
+                    IO_QSPI_GPIO_QSPI_SS_CTRL_OEOVER_BITS);
+    // Small delay for the pin to settle
+    for (volatile int i = 0; i < 1000; ++i);
+    // Read the BOOTSEL button state (active low)
+    bool pressed = !(sio_hw->gpio_hi_in & (1u << CS_PIN_INDEX));
+    // Restore normal CS operation
+    hw_write_masked(&ioqspi_hw->io[CS_PIN_INDEX].ctrl,
+                    GPIO_OVERRIDE_NORMAL << IO_QSPI_GPIO_QSPI_SS_CTRL_OEOVER_LSB,
+                    IO_QSPI_GPIO_QSPI_SS_CTRL_OEOVER_BITS);
+    restore_interrupts(flags);
+    return pressed;
+}
+#endif
+
 int main() {
 
  stdio_init_all();  // If using USB serial
@@ -150,6 +176,12 @@ int main() {
         }
     }
     busy_wait_ms(10); // Let internal pull-ups settle before reading boot combos
+
+    // SG: Hold BOOTSEL at power-on to force-enter USB configurator mode.
+    // Works with no buttons wired — useful after reflashing or for re-binding.
+    if (get_bootsel_button()) {
+        USBConfigurations::Configurator::enterMode();
+    }
 
     // SG: Hold only Tilt/Z at boot to enter whammy calibration mode.
     // Blink LED slowly while waiting. First A press = high LS value,

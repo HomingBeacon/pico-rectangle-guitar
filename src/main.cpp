@@ -149,6 +149,7 @@ int main() {
             gpio_pull_up(cfgPins[i]);
         }
     }
+    busy_wait_ms(10); // Let internal pull-ups settle before reading boot combos
 
     // SG: Hold only Tilt/Z at boot to enter whammy calibration mode.
     // Blink LED slowly while waiting. First A press = high LS value,

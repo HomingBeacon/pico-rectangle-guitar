@@ -2,7 +2,7 @@
 
 #include "pico/stdlib.h"
 #include "hardware/adc.h"
-
+#include <cstdint>
 #include "global.hpp"
 #include "persistence/functions.hpp"
 #include "persistence/pages/sg_binds.hpp"

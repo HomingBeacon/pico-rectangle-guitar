@@ -3,7 +3,7 @@
 #include "hardware/clocks.h"
 #include "hardware/gpio.h"
 #include "hardware/timer.h"
-#include "hardware/watchdog.h"
+#include "hardware/clocks.h"
 #include <vector>
 
 #include "global.hpp"
@@ -36,10 +36,22 @@
 #include "communication_protocols/joybus.hpp"
 
 #include "other/runtime_remapping_mode.hpp"
-
+#include "pico/stdlib.h"
 int main() {
 
-    set_sys_clock_khz(1000*us, true);
+ stdio_init_all();  // If using USB serial
+    gpio_init(25);
+    gpio_set_dir(25, GPIO_OUT);
+    while (true) {  // Or put early in main
+        gpio_put(25, 1);
+        sleep_ms(200);
+        gpio_put(25, 0);
+        sleep_ms(200);
+    }
+
+    
+    set_sys_clock_khz(125000, true);
+   // set_sys_clock_khz(1000*us, true);
     stdio_init_all();
 
     gpio_init(LED_PIN);

@@ -2,107 +2,57 @@ name: CMake Firmware
 
 on:
   push:
+    branches: [ master, main ]
   pull_request:
-    types: [opened, edited, closed, reopened]
-
-env:
-  PICO_SDK_DIR: ./pico-sdk
-  FIRMWARE_ARTIFACT_PATH: ./build/
-
-concurrency:
-  group: ${{ github.head_ref || github.run_id || github.event.number }}
-  cancel-in-progress: true
+  workflow_dispatch:
 
 jobs:
   build-firmware:
-    runs-on: ${{ matrix.os }}
-    strategy:
-      matrix:
-      # Can support other os', such as windows-latest and macos-latest.
-      # os: [ubuntu-latest, windows-latest]
-      # But there's syntactic toolchain differences, especially with gnu coreutils, so we'll leave that for later.
-        os: [ubuntu-latest]
-
-    # TODO: The pico-sdk checkout can probably be cached, as well as the apt update (probably changes more frequently) and cmake install (less frequent changes).
-    # Doing this could save on a lot of the Action setup time, at the cost of some of the Cache Size (so less artifacts could be stored).
-    # https://docs.github.com/en/actions/using-workflows/caching-dependencies-to-speed-up-workflows#usage-limits-and-eviction-policy
+    runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v4
-      name: Checkout repository
+    - name: Checkout repository
+      uses: actions/checkout@v4
       with:
-        ref: ${{ github.event.pull_request.head.sha }}
-    - uses: actions/checkout@v4
-      name: Checkout pico sdk
+        submodules: recursive # Gets the necessary Joybus/Guitar libraries
+
+    - name: Checkout pico sdk
+      uses: actions/checkout@v4
       with:
         repository: raspberrypi/pico-sdk
-        ref: 1.5.1
-        path: ${{ env.PICO_SDK_DIR }}
-    # From https://docs.google.com/document/d/1-Lx3X7zIwRscp6N76_usy5fdwulo6-chML3Xjfz3zaY/
-    # CMake assumes the sdk path is relative to the `build` directory.
-    - name: Set pico-sdk path for CMake
-      run: echo "PICO_SDK_PATH=${{ github.workspace }}/pico-sdk" >> $GITHUB_ENV
-
-    # From https://datasheets.raspberrypi.com/pico/getting-started-with-pico.pdf
-    - name: Update apt and install cmake
+        path: pico-sdk
+        submodules: true
+        
+    - name: Install Toolchain and Build Tools
       run: |
-        sudo apt update -y
-        sudo apt install -y cmake gcc-arm-none-eabi libnewlib-arm-none-eabi build-essential
+        sudo apt-get update
+        sudo apt-get install -y gcc-arm-none-eabi libnewlib-arm-none-eabi libstdc++-arm-none-eabi-newlib build-essential cmake ninja-build
 
-    - name: Create Build Environment
-      run: cmake -E make_directory ${{github.workspace}}/build
+    
+    - name: Configure and Build
+      env:
+        PICO_SDK_PATH: ${{ github.workspace }}/pico-sdk
+      run: |
+        mkdir build
+        cd build
+        cmake -G Ninja ..
+        ninja
 
-    - name: CMake the Firmware
-      working-directory: ${{github.workspace}}/build
-      shell: bash
-      # From Step 3: https://docs.google.com/document/d/1-Lx3X7zIwRscp6N76_usy5fdwulo6-chML3Xjfz3zaY/edit
-      run: cmake ..
+    - name: Upload Standard Firmware
+      uses: actions/upload-artifact@v4
+      with:
+        name: pico_rectangle_standard
+        path: build/pico_rectangle.uf2
 
-    - name: Final `make`
-      working-directory: ${{github.workspace}}/build
-      shell: bash
-      # From Step 3: https://docs.google.com/document/d/1-Lx3X7zIwRscp6N76_usy5fdwulo6-chML3Xjfz3zaY/edit
-      run: make
+    - name: Upload Ult 2IP SOCD
+      uses: actions/upload-artifact@v4
+      with:
+        name: pico_rectangle_ult_2ip
+        path: build/pico_rectangle_ULT_2IP_WITH_REAC.uf2
+        if-no-files-found: warn
 
-    - name: List things
-      working-directory: ${{github.workspace}}/build
-      run: ls -laR
-
-    # Note: Artifacts are uploaded as a ZIP, which currently cannot be customized. https://github.com/actions/upload-artifact#zipped-artifact-downloads
-    # This generally reduces the uf2 file size between 30-60%.
-    # TODO: Tweak artifact retention limit. 90 days is the default and the max, but users can always push an empty commit to their PR to build and download the latest uf2!
-    - name: Upload firmware artifact
+    - name: Upload Ult Neutral SOCD
       uses: actions/upload-artifact@v4
       with:
-        name: pico_rectangle_${{ github.sha }}.uf2
-        path: ${{github.workspace}}/build/pico_rectangle.uf2
-        if-no-files-found: error
-    - name: Upload firmware (Ult with 2IP With Reactivation SOCD) artifact
-      uses: actions/upload-artifact@v4
-      with:
-        name: pico_rectangle_ult_2ip_with_reac_socd_${{ github.sha }}.uf2
-        path: ${{github.workspace}}/build/pico_rectangle_ULT_2IP_WITH_REAC.uf2
-        if-no-files-found: error
-    - name: Upload firmware (Ult with Neutral SOCD) artifact
-      uses: actions/upload-artifact@v4
-      with:
-        name: pico_rectangle_ult_neutral_socd_${{ github.sha }}.uf2
-        path: ${{github.workspace}}/build/pico_rectangle_ULT_NEUTRAL.uf2
-        if-no-files-found: error
-    - name: Upload SG Guitar firmware artifact
-      uses: actions/upload-artifact@v4
-      with:
-        name: pico_rectangle_sg_${{ github.sha }}.uf2
-        path: ${{github.workspace}}/build/pico_rectangle_sg.uf2
-        if-no-files-found: error
-    - name: Upload SG Guitar firmware (Ult with 2IP With Reactivation SOCD) artifact
-      uses: actions/upload-artifact@v4
-      with:
-        name: pico_rectangle_sg_ult_2ip_with_reac_socd_${{ github.sha }}.uf2
-        path: ${{github.workspace}}/build/pico_rectangle_sg_ULT_2IP_WITH_REAC.uf2
-        if-no-files-found: error
-    - name: Upload SG Guitar firmware (Ult with Neutral SOCD) artifact
-      uses: actions/upload-artifact@v4
-      with:
-        name: pico_rectangle_sg_ult_neutral_socd_${{ github.sha }}.uf2
-        path: ${{github.workspace}}/build/pico_rectangle_sg_ULT_NEUTRAL.uf2
-        if-no-files-found: error
+        name: pico_rectangle_ult_neutral
+        path: build/pico_rectangle_ULT_NEUTRAL.uf2
+        if-no-files-found: warn

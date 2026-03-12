@@ -11,6 +11,7 @@
 #include "dac_algorithms/melee_F1.hpp"
 #ifdef SG_GUITAR
 #include "dac_algorithms/melee_SG.hpp"
+#include "hardware/watchdog.h"
 #endif
 #include "dac_algorithms/project_plus_F1.hpp"
 #include "dac_algorithms/ultimate_F1.hpp"

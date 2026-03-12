@@ -177,10 +177,22 @@ int main() {
     }
     busy_wait_ms(10); // Let internal pull-ups settle before reading boot combos
 
-    // SG: Hold BOOTSEL at power-on to force-enter USB configurator mode.
-    // Works with no buttons wired — useful after reflashing or for re-binding.
-    if (get_bootsel_button()) {
-        USBConfigurations::Configurator::enterMode();
+    // SG: Press BOOTSEL within 1s of power-on to force-enter configurator.
+    // LED blinks rapidly during the window. Works with no buttons wired.
+    // (Can't check BOOTSEL *at* power-on — ROM bootloader catches that first.)
+    {
+        const uint32_t windowMs = 1000;
+        const uint32_t blinkMs = 100;
+        uint32_t elapsed = 0;
+        while (elapsed < windowMs) {
+            if (get_bootsel_button()) {
+                USBConfigurations::Configurator::enterMode();
+            }
+            gpio_put(LED_PIN, (elapsed / blinkMs) & 1);
+            busy_wait_ms(5);
+            elapsed += 5;
+        }
+        gpio_put(LED_PIN, 0);
     }
 
     // SG: Hold only Tilt/Z at boot to enter whammy calibration mode.

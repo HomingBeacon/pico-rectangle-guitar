@@ -47,7 +47,10 @@ svg.guitar { width: 100%; height: auto; }
 .bind-list { display: flex; flex-direction: column; gap: 8px; }
 .bind-row { display: flex; align-items: center; gap: 8px; padding: 8px 10px; background: #0a0a1a; border-radius: 8px; border: 1px solid transparent; transition: border-color 0.2s; }
 .bind-row.highlight { border-color: #e94560; }
-.bind-pin { font-size: 12px; color: #888; min-width: 50px; }
+.bind-pin { font-size: 12px; color: #888; min-width: 50px; cursor: pointer; border-radius: 4px; padding: 2px 4px; transition: all 0.2s; }
+.bind-pin:hover { background: #0f3460; color: #e94560; }
+.bind-pin.listening { background: #e94560; color: white; animation: pulse 1s infinite; }
+@keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.6; } }
 .bind-name { font-size: 13px; font-weight: 600; min-width: 90px; }
 .bind-select { flex: 1; background: #16213e; color: #e0e0e0; border: 1px solid #333; border-radius: 4px; padding: 4px 8px; font-size: 13px; }
 .bind-indicator { width: 8px; height: 8px; border-radius: 50%; background: #333; transition: background 0.1s; }
@@ -263,6 +266,44 @@ let detectedPressedPin = 0xFF;
 let bindsConfigured = false;
 let firstBootHandled = false;
 
+// --- Single-slot pin remap ---
+let remapSlot = -1; // which slot is listening for a new pin, -1 = none
+
+function startRemap(slot) {
+    if (!connected) return;
+    if (wizardActive) return;
+    if (remapSlot === slot) {
+        cancelRemap();
+        return;
+    }
+    remapSlot = slot;
+    // Update UI to show listening state
+    for (let i = 0; i < NUM_SLOTS; i++) {
+        const pin = document.getElementById(`bind-pin-${i}`);
+        if (pin) pin.classList.toggle('listening', i === slot);
+    }
+}
+
+function cancelRemap() {
+    remapSlot = -1;
+    for (let i = 0; i < NUM_SLOTS; i++) {
+        const pin = document.getElementById(`bind-pin-${i}`);
+        if (pin) pin.classList.remove('listening');
+    }
+}
+
+function handleRemapInput() {
+    if (remapSlot < 0) return;
+    if (detectedPressedPin === 0xFF) return;
+
+    const pin = detectedPressedPin;
+    // Send the pin assignment to firmware
+    sendSetBindPin(remapSlot, pin);
+    const pinEl = document.getElementById(`bind-pin-${remapSlot}`);
+    if (pinEl) pinEl.textContent = 'GP' + pin;
+    cancelRemap();
+}
+
 // --- Pin Setup Wizard ---
 let wizardActive = false;
 let wizardStep = 0;
@@ -270,6 +311,7 @@ let wizardAssignedPins = new Array(NUM_SLOTS).fill(0xFF);
 let wizardWaitingForRelease = false;
 
 function startWizard() {
+    cancelRemap();
     wizardActive = true;
     wizardStep = 0;
     wizardAssignedPins.fill(0xFF);
@@ -284,8 +326,8 @@ function closeWizard() {
 }
 
 function skipWizardStep() {
-    // Keep the current/default pin for this slot
-    wizardAssignedPins[wizardStep] = currentPins[wizardStep];
+    // Leave as 0xFF so it doesn't block future pin assignments
+    wizardAssignedPins[wizardStep] = 0xFF;
     wizardStep++;
     if (wizardStep >= NUM_SLOTS) {
         finishWizard();
@@ -392,7 +434,7 @@ function initBindList() {
         row.innerHTML = `
             <div class="bind-indicator" id="bind-ind-${i}"></div>
             <div class="bind-name">${SLOT_NAMES[i]}</div>
-            <div class="bind-pin" id="bind-pin-${i}">GP?</div>
+            <div class="bind-pin" id="bind-pin-${i}" onclick="startRemap(${i})" title="Click to remap this pin">GP?</div>
             <select class="bind-select" id="bind-sel-${i}" onchange="onBindChange(${i}, this.value)" disabled>
                 ${options}
             </select>
@@ -440,6 +482,7 @@ async function connect() {
 }
 
 async function disconnect() {
+    cancelRemap();
     if (device) {
         try { await device.close(); } catch (e) {}
         device = null;
@@ -489,9 +532,11 @@ function handleInputReport(event) {
         }
     }
 
-    // Feed wizard input
+    // Feed wizard input or single-slot remap
     if (wizardActive) {
         handleWizardInput();
+    } else {
+        handleRemapInput();
     }
 
     // Button pressed states (matches the bit layout in firmware)

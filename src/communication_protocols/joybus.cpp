@@ -66,6 +66,7 @@ void enterMode(int dataPin, std::function<GCReport()> func) {
         buffer[0] = pio_sm_get_blocking(pio, 0);
 
         if (buffer[0] == 0) { // Probe
+            gpio_put(LED_PIN, 1);
             uint8_t probeResponse[3] = { 0x09, 0x00, 0x03 };
             uint32_t result[2];
             int resultLen;

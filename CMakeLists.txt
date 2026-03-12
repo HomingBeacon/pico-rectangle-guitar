@@ -60,9 +60,12 @@ foreach(ULT_OPTION ${ULT_OPTIONS})
   # Link libraries for the current option
   target_link_libraries(${TARGET_NAME} pico_stdlib hardware_pio pico_time pico_bootrom hardware_resets hardware_timer hardware_irq hardware_sync hardware_flash)
   
+  # Disable stdio USB to prevent conflicts with custom USB implementation
+  pico_enable_stdio_usb(${TARGET_NAME} 0)
+
   # Add extra outputs for the current option
   pico_add_extra_outputs(${TARGET_NAME})
-  
+
 endforeach()
 
 # SG Guitar build targets
@@ -82,6 +85,7 @@ foreach(ULT_OPTION ${ULT_OPTIONS})
     src/usb_configurations/wired_fight_pad_pro.cpp
     src/usb_configurations/xbox_360.cpp
     src/dac_algorithms/melee_F1.cpp
+    src/dac_algorithms/melee_SG.cpp
     src/dac_algorithms/project_plus_F1.cpp
     src/dac_algorithms/ultimate_F1.cpp
     src/dac_algorithms/set_of_8_keys.cpp
@@ -89,6 +93,7 @@ foreach(ULT_OPTION ${ULT_OPTIONS})
     src/dac_algorithms/xbox_360.cpp
     src/gpio_to_button_sets/F1.cpp
     src/gpio_to_button_sets/SG.cpp
+    src/usb_configurations/configurator.cpp
     src/other/runtime_remapping_mode.cpp
   )
 
@@ -101,7 +106,10 @@ foreach(ULT_OPTION ${ULT_OPTIONS})
           COMMAND Pioasm ${CMAKE_CURRENT_LIST_DIR}/my_pio.pio ${CMAKE_CURRENT_LIST_DIR}/generated/my_pio.pio.h
   )
 
-  target_link_libraries(${SG_TARGET_NAME} pico_stdlib hardware_pio pico_time pico_bootrom hardware_resets hardware_timer hardware_irq hardware_sync hardware_flash hardware_adc)
+  target_link_libraries(${SG_TARGET_NAME} pico_stdlib hardware_pio pico_time pico_bootrom hardware_resets hardware_timer hardware_irq hardware_sync hardware_flash hardware_adc hardware_watchdog)
+
+  # Disable stdio USB to prevent conflicts with custom USB implementation
+  pico_enable_stdio_usb(${SG_TARGET_NAME} 0)
 
   pico_add_extra_outputs(${SG_TARGET_NAME})
 

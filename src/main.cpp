@@ -1,5 +1,6 @@
 #include "pico/stdlib.h"
 #include "pico/bootrom.h"
+#include "hardware/clocks.h"
 #include "hardware/gpio.h"
 #include "hardware/timer.h"
 #include "hardware/clocks.h"
@@ -8,6 +9,9 @@
 #include "global.hpp"
 
 #include "dac_algorithms/melee_F1.hpp"
+#ifdef SG_GUITAR
+#include "dac_algorithms/melee_SG.hpp"
+#endif
 #include "dac_algorithms/project_plus_F1.hpp"
 #include "dac_algorithms/ultimate_F1.hpp"
 #include "dac_algorithms/set_of_8_keys.hpp"
@@ -17,6 +21,10 @@
 #include "gpio_to_button_sets/F1.hpp"
 #ifdef SG_GUITAR
 #include "gpio_to_button_sets/SG.hpp"
+#include "persistence/functions.hpp"
+#include "persistence/pages/whammy_calibration.hpp"
+#include "persistence/pages/sg_binds.hpp"
+#include "usb_configurations/configurator.hpp"
 #endif
 
 #include "usb_configurations/gcc_to_usb_adapter.hpp"
@@ -48,10 +56,12 @@ int main() {
 
     gpio_init(LED_PIN);
     gpio_set_dir(LED_PIN, GPIO_OUT);
-    gpio_put(LED_PIN, 0);
+    gpio_put(LED_PIN, 1); // LED on at boot to confirm firmware is running
 
+    #ifndef SG_GUITAR
     gpio_init(USB_POWER_PIN);
     gpio_set_dir(USB_POWER_PIN, GPIO_IN);
+    #endif
 
     #if USE_UART0
     // Initialise UART 0
@@ -91,7 +101,8 @@ int main() {
     // 22 - GP17 - Up : runtime remapping
     if (!gpio_get(17)) Other::enterRuntimeRemappingMode();
     #endif
-    
+
+    #ifndef SG_GUITAR
     gpio_init(gcDataPin);
     gpio_set_dir(gcDataPin, GPIO_IN);
     gpio_pull_up(gcDataPin);
@@ -101,121 +112,240 @@ int main() {
     while ( time_us_32() - origin < 500'000 ) {
         if (!gpio_get(gcDataPin)) goto stateLabel__forceJoybusEntry;
     }
-    
+    #endif
+
+    #ifdef SG_GUITAR
+    // Read configured pin assignments from flash for mode selection.
+    // On first boot (unconfigured), uses compiled-in defaults.
+    const auto* sgBinds = Persistence::read<Persistence::Pages::SgBinds>();
+    uint8_t pinGreen, pinRed, pinYellow, pinBlue, pinOrange;
+    uint8_t pinUpStrum, pinDownStrum, pinRButton, pinTilt, pinSelect, pinStart;
+    if (sgBinds->configured == 1) {
+        pinGreen    = sgBinds->entries[SLOT_GREEN].pin;
+        pinRed      = sgBinds->entries[SLOT_RED].pin;
+        pinYellow   = sgBinds->entries[SLOT_YELLOW].pin;
+        pinBlue     = sgBinds->entries[SLOT_BLUE].pin;
+        pinOrange   = sgBinds->entries[SLOT_ORANGE].pin;
+        pinUpStrum  = sgBinds->entries[SLOT_UP_STRUM].pin;
+        pinDownStrum= sgBinds->entries[SLOT_DOWN_STRUM].pin;
+        pinRButton  = sgBinds->entries[SLOT_R_BUTTON].pin;
+        pinTilt     = sgBinds->entries[SLOT_TILT].pin;
+        pinSelect   = sgBinds->entries[SLOT_SELECT].pin;
+        pinStart    = sgBinds->entries[SLOT_START].pin;
+    } else {
+        pinGreen = 2; pinRed = 3; pinYellow = 4; pinBlue = 5; pinOrange = 6;
+        pinUpStrum = 7; pinDownStrum = 8; pinRButton = 15; pinTilt = 17;
+        pinSelect = 21; pinStart = 22;
+    }
+    // Init configured pins (may differ from default modePins list)
+    {
+        uint8_t cfgPins[] = { pinGreen, pinRed, pinYellow, pinBlue, pinOrange,
+                              pinUpStrum, pinDownStrum, pinRButton, pinTilt,
+                              pinSelect, pinStart };
+        for (unsigned i = 0; i < sizeof(cfgPins); i++) {
+            gpio_init(cfgPins[i]);
+            gpio_set_dir(cfgPins[i], GPIO_IN);
+            gpio_pull_up(cfgPins[i]);
+        }
+    }
+
+    // SG: Hold only Tilt/Z at boot to enter whammy calibration mode.
+    // Blink LED slowly while waiting. First A press = high LS value,
+    // second A press = low LS value. Saves to flash and reboots.
+    if (!gpio_get(pinTilt) && gpio_get(pinDownStrum) && gpio_get(pinUpStrum) && gpio_get(pinGreen)) {
+        // Init SG GPIO/ADC for whammy reads
+        GpioToButtonSets::SG::defaultConversion();
+
+        // Wait for Tilt release first
+        while (!gpio_get(pinTilt)) {
+            gpio_put(LED_PIN, 0); busy_wait_ms(100);
+            gpio_put(LED_PIN, 1); busy_wait_ms(100);
+        }
+
+        Persistence::Pages::WhammyCalibration cal = {};
+
+        // Blink slowly: waiting for first Green press (high LS whammy position)
+        while (gpio_get(pinGreen)) {
+            gpio_put(LED_PIN, 0); busy_wait_ms(500);
+            gpio_put(LED_PIN, 1); busy_wait_ms(500);
+        }
+        cal.whammyHigh = GpioToButtonSets::SG::readWhammy();
+        // Wait for Green release
+        while (!gpio_get(pinGreen)) tight_loop_contents();
+
+        // Blink fast: waiting for second Green press (low LS whammy position)
+        while (gpio_get(pinGreen)) {
+            gpio_put(LED_PIN, 0); busy_wait_ms(150);
+            gpio_put(LED_PIN, 1); busy_wait_ms(150);
+        }
+        cal.whammyLow = GpioToButtonSets::SG::readWhammy();
+        cal.configured = 1;
+
+        // Save to flash
+        Persistence::commit(cal);
+
+        // Solid LED for 1 second to confirm, then reboot
+        gpio_put(LED_PIN, 1);
+        busy_wait_ms(1000);
+        watchdog_reboot(0, 0, 0); // Clean reboot into normal firmware
+        while (1) tight_loop_contents();
+    }
+
+    // SG: Hold Select+Start at boot to enter USB configurator mode.
+    // Enumerates as a vendor HID device; use configurator.html to connect.
+    if (!gpio_get(pinSelect) && !gpio_get(pinStart)) {
+        USBConfigurations::Configurator::enterMode();
+    }
+
+    // SG: First boot — if binds have never been configured, auto-enter configurator
+    // so the user can set up their layout before playing.
+    if (sgBinds->configured != 1) {
+        USBConfigurations::Configurator::enterMode();
+    }
+
+    // SG: Hold Down Strum at boot to enter console/joybus mode.
+    // USB is the default when no combo is held.
+    if (!gpio_get(pinDownStrum)) goto stateLabel__forceJoybusEntry;
+    #endif
+
     /* Mode selection logic */
 
 #ifdef SG_GUITAR
 
-    // Not plugged through USB => Joybus
-    if (!gpio_get(USB_POWER_PIN)) {
-        stateLabel__forceJoybusEntry:
+    goto sg_usb_modes;
 
-        // Green (GP2) or Up Strum (GP7): P+
-        if ((!gpio_get(7)) || (!gpio_get(2))) {
-            CommunicationProtocols::Joybus::enterMode(gcDataPin, [](){
-                GCReport report = DACAlgorithms::ProjectPlusF1::getGCReport(GpioToButtonSets::SG::defaultConversion());
-                uint8_t whammy = GpioToButtonSets::SG::readWhammy();
-                if (whammy > report.analogR) report.analogR = whammy;
-                return report;
-            });
-        }
+    stateLabel__forceJoybusEntry:
 
-        // Orange (GP6): Ultimate
-        if (!gpio_get(6)) {
-            CommunicationProtocols::Joybus::enterMode(gcDataPin, [](){
-                GCReport report = DACAlgorithms::UltimateF1::getGCReport(GpioToButtonSets::SG::defaultConversion());
-                uint8_t whammy = GpioToButtonSets::SG::readWhammy();
-                if (whammy > report.analogR) report.analogR = whammy;
-                return report;
-            });
-        }
+    // LED OFF = joybus mode entered, waiting for console.
+    // LED turns back ON when first probe is received (confirms GP28 data line works).
+    gpio_put(LED_PIN, 0);
 
-        // Else: SG / Melee
+    // Pre-init SG GPIO/ADC so the first joybus poll isn't delayed by lazy init.
+    GpioToButtonSets::SG::defaultConversion();
+
+    // Load whammy calibration from flash
+    DACAlgorithms::MeleeSG::loadCalibration();
+
+    // Green or Up Strum: P+
+    if ((!gpio_get(pinUpStrum)) || (!gpio_get(pinGreen))) {
         CommunicationProtocols::Joybus::enterMode(gcDataPin, [](){
-            GCReport report = DACAlgorithms::MeleeF1::getGCReport(GpioToButtonSets::SG::defaultConversion());
+            GCReport report = DACAlgorithms::ProjectPlusF1::getGCReport(GpioToButtonSets::SG::defaultConversion());
             uint8_t whammy = GpioToButtonSets::SG::readWhammy();
             if (whammy > report.analogR) report.analogR = whammy;
             return report;
         });
     }
 
-    // Else:
+    // Orange: Ultimate
+    if (!gpio_get(pinOrange)) {
+        CommunicationProtocols::Joybus::enterMode(gcDataPin, [](){
+            GCReport report = DACAlgorithms::UltimateF1::getGCReport(GpioToButtonSets::SG::defaultConversion());
+            uint8_t whammy = GpioToButtonSets::SG::readWhammy();
+            if (whammy > report.analogR) report.analogR = whammy;
+            return report;
+        });
+    }
 
-    // Red (GP3): Melee / XInput
-    if (!gpio_get(3)) USBConfigurations::Xbox360::enterMode([](){
-        GCReport report = DACAlgorithms::MeleeF1::getGCReport(GpioToButtonSets::SG::defaultConversion());
-        uint8_t whammy = GpioToButtonSets::SG::readWhammy();
-        if (whammy > report.analogR) report.analogR = whammy;
+    // Else: SG / Melee
+    CommunicationProtocols::Joybus::enterMode(gcDataPin, [](){
+        return DACAlgorithms::MeleeSG::getGCReport(
+            GpioToButtonSets::SG::defaultConversion(),
+            GpioToButtonSets::SG::readWhammy()
+        );
+    });
+
+    sg_usb_modes:
+
+    // 3 quick blinks to confirm firmware reached USB mode selection
+    for (int i = 0; i < 3; i++) {
+        gpio_put(LED_PIN, 0);
+        busy_wait_ms(150);
+        gpio_put(LED_PIN, 1);
+        busy_wait_ms(150);
+    }
+
+    // Load whammy calibration for USB modes too
+    DACAlgorithms::MeleeSG::loadCalibration();
+
+    // Red: Melee / XInput
+    if (!gpio_get(pinRed)) USBConfigurations::Xbox360::enterMode([](){
+        GCReport report = DACAlgorithms::MeleeSG::getGCReport(
+            GpioToButtonSets::SG::defaultConversion(),
+            GpioToButtonSets::SG::readWhammy()
+        );
         USBConfigurations::Xbox360::actuateReportFromGCState(report);
     });
 
-    // Down Strum (GP8): Xbox360 / XInput
-    if (!gpio_get(8)) USBConfigurations::Xbox360::enterMode([](){
+    // Down Strum: Xbox360 / XInput
+    if (!gpio_get(pinDownStrum)) USBConfigurations::Xbox360::enterMode([](){
         DACAlgorithms::Xbox360::actuateXbox360Report(GpioToButtonSets::SG::defaultConversion());
         uint8_t whammy = GpioToButtonSets::SG::readWhammy();
         if (whammy > USBConfigurations::Xbox360::xInputReport.rightTrigger)
             USBConfigurations::Xbox360::xInputReport.rightTrigger = whammy;
     });
 
-    // Select (GP21): Melee / HID
-    if (!gpio_get(21)) USBConfigurations::HidWithTriggers::enterMode([](){
-        GCReport report = DACAlgorithms::MeleeF1::getGCReport(GpioToButtonSets::SG::defaultConversion());
-        uint8_t whammy = GpioToButtonSets::SG::readWhammy();
-        if (whammy > report.analogR) report.analogR = whammy;
+    // Select: Melee / HID
+    if (!gpio_get(pinSelect)) USBConfigurations::HidWithTriggers::enterMode([](){
+        GCReport report = DACAlgorithms::MeleeSG::getGCReport(
+            GpioToButtonSets::SG::defaultConversion(),
+            GpioToButtonSets::SG::readWhammy()
+        );
         USBConfigurations::HidWithTriggers::actuateReportFromGCState(report);
     });
 
-    // Start (GP22): Ult / HID
-    if (!gpio_get(22)) USBConfigurations::HidWithTriggers::enterMode([](){
+    // Start: Ult / HID
+    if (!gpio_get(pinStart)) USBConfigurations::HidWithTriggers::enterMode([](){
         GCReport report = DACAlgorithms::UltimateF1::getGCReport(GpioToButtonSets::SG::defaultConversion());
         uint8_t whammy = GpioToButtonSets::SG::readWhammy();
         if (whammy > report.analogR) report.analogR = whammy;
         USBConfigurations::HidWithTriggers::actuateReportFromGCState(report);
     });
 
-    // Green (GP2): P+ / WFPP (Switch)
-    if (!gpio_get(2)) USBConfigurations::WiredFightPadPro::enterMode([](){
+    // Green: P+ / WFPP (Switch)
+    if (!gpio_get(pinGreen)) USBConfigurations::WiredFightPadPro::enterMode([](){
         GCReport report = DACAlgorithms::ProjectPlusF1::getGCReport(GpioToButtonSets::SG::defaultConversion());
         uint8_t whammy = GpioToButtonSets::SG::readWhammy();
         if (whammy > report.analogR) report.analogR = whammy;
         USBConfigurations::WiredFightPadPro::actuateReportFromGCState(report);
     });
 
-    // Up Strum (GP7): P+ / GCC Adapter
-    if (!gpio_get(7)) USBConfigurations::GccToUsbAdapter::enterMode([](){
+    // Up Strum: P+ / GCC Adapter
+    if (!gpio_get(pinUpStrum)) USBConfigurations::GccToUsbAdapter::enterMode([](){
         GCReport report = DACAlgorithms::ProjectPlusF1::getGCReport(GpioToButtonSets::SG::defaultConversion());
         uint8_t whammy = GpioToButtonSets::SG::readWhammy();
         if (whammy > report.analogR) report.analogR = whammy;
         USBConfigurations::GccToUsbAdapter::actuateReportFromGCState(report);
     });
 
-    // Orange (GP6): Ultimate / GCC Adapter
-    if (!gpio_get(6)) USBConfigurations::GccToUsbAdapter::enterMode([](){
+    // Orange: Ultimate / GCC Adapter
+    if (!gpio_get(pinOrange)) USBConfigurations::GccToUsbAdapter::enterMode([](){
         GCReport report = DACAlgorithms::UltimateF1::getGCReport(GpioToButtonSets::SG::defaultConversion());
         uint8_t whammy = GpioToButtonSets::SG::readWhammy();
         if (whammy > report.analogR) report.analogR = whammy;
         USBConfigurations::GccToUsbAdapter::actuateReportFromGCState(report);
     });
 
-    // Blue (GP5): Melee / WFPP (Switch)
-    if (!gpio_get(5)) USBConfigurations::WiredFightPadPro::enterMode([](){
-        GCReport report = DACAlgorithms::MeleeF1::getGCReport(GpioToButtonSets::SG::defaultConversion());
-        uint8_t whammy = GpioToButtonSets::SG::readWhammy();
-        if (whammy > report.analogR) report.analogR = whammy;
+    // Blue: Melee / WFPP (Switch)
+    if (!gpio_get(pinBlue)) USBConfigurations::WiredFightPadPro::enterMode([](){
+        GCReport report = DACAlgorithms::MeleeSG::getGCReport(
+            GpioToButtonSets::SG::defaultConversion(),
+            GpioToButtonSets::SG::readWhammy()
+        );
         USBConfigurations::WiredFightPadPro::actuateReportFromGCState(report);
     });
 
-    // Yellow (GP4): WFPP Default / WFPP (Switch)
-    if (!gpio_get(4)) USBConfigurations::WiredFightPadPro::enterMode([](){
+    // Yellow: WFPP Default / WFPP (Switch)
+    if (!gpio_get(pinYellow)) USBConfigurations::WiredFightPadPro::enterMode([](){
         DACAlgorithms::WiredFightPadProDefault::actuateWFPPReport(GpioToButtonSets::SG::defaultConversion());
     });
 
     // Default: Melee / GCC Adapter
     USBConfigurations::GccToUsbAdapter::enterMode(
         [](){
-            GCReport report = DACAlgorithms::MeleeF1::getGCReport(GpioToButtonSets::SG::defaultConversion());
-            uint8_t whammy = GpioToButtonSets::SG::readWhammy();
-            if (whammy > report.analogR) report.analogR = whammy;
+            GCReport report = DACAlgorithms::MeleeSG::getGCReport(
+                GpioToButtonSets::SG::defaultConversion(),
+                GpioToButtonSets::SG::readWhammy()
+            );
             USBConfigurations::GccToUsbAdapter::actuateReportFromGCState(report);
         },
         [](){

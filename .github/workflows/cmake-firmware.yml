@@ -2,7 +2,7 @@ name: CMake Firmware
 
 on:
   push:
-    branches: [ master, main ]
+    branches: [ master, main, claude/sg-guitar-layout-D9HRQ ]
   pull_request:
   workflow_dispatch:
 

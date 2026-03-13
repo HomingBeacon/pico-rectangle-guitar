@@ -58,16 +58,15 @@ void enterMode(int dataPin, std::function<GCReport()> func) {
     sm_config_set_out_shift(&config, true, false, 32);
     sm_config_set_in_shift(&config, false, true, 8);
     
-    pio_sm_init(pio, 0, offset, &config);
-    pio_sm_set_enabled(pio, 0, true);
-
-    // Diagnostic: 3 quick blinks = "joybus ready, waiting for console probe"
-    // After these blinks, LED stays OFF until the console probes.
-    // If LED never comes back on after the blinks, the console isn't talking to us.
+    // Diagnostic: 3 quick blinks BEFORE PIO starts = "joybus ready"
+    // Must happen before PIO is enabled so we don't miss the first probe.
     for (int i = 0; i < 3; i++) {
         led_put(1); busy_wait_ms(80);
         led_put(0); busy_wait_ms(80);
     }
+
+    pio_sm_init(pio, 0, offset, &config);
+    pio_sm_set_enabled(pio, 0, true);
 
     while (true) {
         uint8_t buffer[3];

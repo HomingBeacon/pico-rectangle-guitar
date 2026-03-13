@@ -4,6 +4,7 @@
 
 #include "hardware/gpio.h"
 #include "hardware/resets.h"
+#include "hardware/structs/usb.h"
 
 #include "hardware/pio.h"
 #include "my_pio.pio.h"
@@ -39,9 +40,13 @@ namespace Joybus
 
 void enterMode(int dataPin, std::function<GCReport()> func) {
     // If D+ is shared between GP28 and the USB PHY, the PHY can load/drive
-    // the line and corrupt joybus signals. Force USB controller into reset
-    // so the PHY tri-states D+/D-.
-    reset_block(RESETS_RESET_USBCTRL_BITS);
+    // the line and corrupt joybus signals. Unreset USB so we can access its
+    // registers, then disconnect the PHY from the pads entirely.
+    unreset_block_wait(RESETS_RESET_USBCTRL_BITS);
+    usb_hw->muxing = USB_USB_MUXING_SOFTCON_BITS; // Disconnect PHY from pads
+    usb_hw->main_ctrl = 0;                         // Disable USB controller
+    usb_hw->sie_ctrl = 0;                           // Disable pull-ups
+    usb_hw->pwr = 0;                                // Power down USB PHY
 
     gpio_init(dataPin);
     gpio_set_dir(dataPin, GPIO_IN);

@@ -118,13 +118,24 @@ static void buildStatusReport() {
     // Used by the pin labeling wizard to detect which GPIO a physical input is on.
     // Pack as a bitmask: byte 30 = pins 0-7, byte 31 = pins 8-22 (shifted).
     // We only scan safe candidate pins (not LED, ADC, data, BOOTSEL).
-    static const uint8_t candidatePins[] = { 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 17, 20, 21 };
+    static const uint8_t candidatePins[] = { 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 17, 18, 19, 20, 21, 22 };
     uint32_t gpioState = sio_hw->gpio_in;
-    // Find first pressed (low) candidate pin, report its number (0xFF if none)
+    // Find first pressed candidate pin, report its number (0xFF if none).
+    // Check both active-low (pull-up) and active-high (pull-down) pins.
     statusReport[30] = 0xFF;
     for (unsigned i = 0; i < sizeof(candidatePins); i++) {
         uint8_t p = candidatePins[i];
-        if (!(gpioState & (1u << p))) {
+        bool pinHigh = gpioState & (1u << p);
+        // Check if this pin is configured as pull-down for any slot
+        bool isPullDown = false;
+        for (int s = 0; s < NUM_SG_BIND_SLOTS; s++) {
+            if (GpioToButtonSets::SG::getBindPin(s) == p && GpioToButtonSets::SG::getBindPullMode(s)) {
+                isPullDown = true;
+                break;
+            }
+        }
+        bool pressed = isPullDown ? pinHigh : !pinHigh;
+        if (pressed) {
             statusReport[30] = p;
             break;
         }
@@ -190,7 +201,7 @@ static void processCommand(volatile uint8_t *cmd, uint8_t len) {
 void enterMode() {
     // Init all candidate GPIO pins as inputs with pull-ups for raw scanning.
     // This ensures pin detection works even before binds are configured.
-    static const uint8_t candidatePins[] = { 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 17, 20, 21 };
+    static const uint8_t candidatePins[] = { 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 17, 18, 19, 20, 21, 22 };
     for (unsigned i = 0; i < sizeof(candidatePins); i++) {
         gpio_init(candidatePins[i]);
         gpio_set_dir(candidatePins[i], GPIO_IN);

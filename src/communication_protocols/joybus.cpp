@@ -60,21 +60,21 @@ void enterMode(int dataPin, std::function<GCReport()> func) {
     
     pio_sm_init(pio, 0, offset, &config);
     pio_sm_set_enabled(pio, 0, true);
-    
-    // Diagnostic: LED blink pattern indicates where joybus fails.
-    // After power-cut, count the fast blinks you saw:
-    //   0 blinks (LED never turned on) = Wii never probed (cable/wiring issue)
-    //   1 blink  = probe OK, died at origin
-    //   2 blinks = origin OK, died at first poll
-    //   steady on then off = polls worked for a while then died
-    int phase = 0;
+
+    // Diagnostic: 3 quick blinks = "joybus ready, waiting for console probe"
+    // After these blinks, LED stays OFF until the console probes.
+    // If LED never comes back on after the blinks, the console isn't talking to us.
+    for (int i = 0; i < 3; i++) {
+        led_put(1); busy_wait_ms(80);
+        led_put(0); busy_wait_ms(80);
+    }
 
     while (true) {
         uint8_t buffer[3];
         buffer[0] = pio_sm_get_blocking(pio, 0);
 
         if (buffer[0] == 0) { // Probe
-            if (phase < 1) { phase = 1; led_put(1); }
+            led_put(1);
             uint8_t probeResponse[3] = { 0x09, 0x00, 0x03 };
             uint32_t result[2];
             int resultLen;
@@ -88,11 +88,7 @@ void enterMode(int dataPin, std::function<GCReport()> func) {
             for (int i = 0; i<resultLen; i++) pio_sm_put_blocking(pio, 0, result[i]);
         }
         else if (buffer[0] == 0x41 || buffer[0] == 0x81) { // Origin / Recalibrate
-            if (phase < 2) {
-                phase = 2;
-                // Diagnostic: brief LED off-on so user sees a second blink
-                led_put(0); busy_wait_us(800); led_put(1);
-            }
+            led_put(1);
             uint8_t originResponse[10] = { 0x00, 0x80, 128, 128, 128, 128, 0, 0, 0, 0 };
             uint32_t result[6];
             int resultLen;
@@ -109,12 +105,6 @@ void enterMode(int dataPin, std::function<GCReport()> func) {
             buffer[0] = pio_sm_get_blocking(pio, 0);
             buffer[0] = pio_sm_get_blocking(pio, 0);
             gpio_put(rumblePin, buffer[0] & 1);
-
-            if (phase < 3) {
-                phase = 3;
-                // Diagnostic: brief LED off-on so user sees a third blink
-                led_put(0); busy_wait_us(800); led_put(1);
-            }
 
             GCReport gcReport = func();
 

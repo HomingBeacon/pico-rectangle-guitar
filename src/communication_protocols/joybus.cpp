@@ -3,6 +3,7 @@
 #include "global.hpp"
 
 #include "hardware/gpio.h"
+#include "hardware/resets.h"
 
 #include "hardware/pio.h"
 #include "my_pio.pio.h"
@@ -37,6 +38,11 @@ namespace Joybus
 {
 
 void enterMode(int dataPin, std::function<GCReport()> func) {
+    // If D+ is shared between GP28 and the USB PHY, the PHY can load/drive
+    // the line and corrupt joybus signals. Force USB controller into reset
+    // so the PHY tri-states D+/D-.
+    reset_block(RESETS_RESET_USBCTRL_BITS);
+
     gpio_init(dataPin);
     gpio_set_dir(dataPin, GPIO_IN);
     gpio_pull_up(dataPin);

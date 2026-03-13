@@ -31,29 +31,28 @@ void loadCalibration() {
     }
 }
 
-// Maps raw whammy value to 0-49 lightshield range using calibration
-static uint8_t whammyToLightshield(uint8_t raw) {
+// Maps raw whammy value to full 0-255 analog range using calibration
+static uint8_t whammyToAnalog(uint8_t raw) {
     // Determine direction: high might be > or < low depending on pot wiring
     bool inverted = whammyLow > whammyHigh;
     uint8_t lo = inverted ? whammyHigh : whammyLow;
     uint8_t hi = inverted ? whammyLow : whammyHigh;
 
-    // Apply deadzone from the low end
-    uint8_t dzThreshold = lo + whammyDeadzone;
     if (inverted) {
         // Inverted: "rest" is near hi, active toward lo
         if (raw >= hi - whammyDeadzone) return 0;
-        if (raw <= lo) return 49;
+        if (raw <= lo) return 255;
         uint8_t active = (hi - whammyDeadzone) - lo;
         if (active == 0) return 0;
-        return (uint8_t)(((uint16_t)((hi - whammyDeadzone) - raw) * 49) / active);
+        return (uint8_t)(((uint16_t)((hi - whammyDeadzone) - raw) * 255) / active);
     } else {
         // Normal: "rest" is near lo, active toward hi
+        uint8_t dzThreshold = lo + whammyDeadzone;
         if (raw <= dzThreshold) return 0;
-        if (raw >= hi) return 49;
+        if (raw >= hi) return 255;
         uint8_t active = hi - dzThreshold;
         if (active == 0) return 0;
-        return (uint8_t)(((uint16_t)(raw - dzThreshold) * 49) / active);
+        return (uint8_t)(((uint16_t)(raw - dzThreshold) * 255) / active);
     }
 }
 
@@ -210,9 +209,9 @@ GCReport getGCReport(GpioToButtonSets::F1::ButtonSet buttonSet, uint8_t whammyRa
     /* Triggers */
     // L button (orange fret) = hard press
     gcReport.analogL = bs.l ? 140 : 0;
-    // R button (under whammy) = hard press; whammy bar = analog lightshield on R
-    uint8_t whammyLS = whammyToLightshield(whammyRaw);
-    gcReport.analogR = bs.r ? 140 : whammyLS;
+    // R button (under whammy) = hard press; whammy bar = full analog R
+    uint8_t whammyAnalog = whammyToAnalog(whammyRaw);
+    gcReport.analogR = bs.r ? 140 : whammyAnalog;
 
     /* Buttons */
     gcReport.a = bs.a;

@@ -217,6 +217,11 @@ int main() {
         while (1) tight_loop_contents();
     }
 
+    // SG: Hold Select+Start+Green at boot to enter BOOTSEL (UF2 flash) mode.
+    if (!gpio_get(pinSelect) && !gpio_get(pinStart) && !gpio_get(pinGreen)) {
+        reset_usb_boot(0, 0);
+    }
+
     // SG: Hold Select+Start at boot to enter USB configurator mode.
     // Enumerates as a vendor HID device; use configurator.html to connect.
     if (!gpio_get(pinSelect) && !gpio_get(pinStart)) {

@@ -38,11 +38,12 @@ static const PinMapping defaultPinMappings[NUM_SG_BIND_SLOTS] = {
     { 17, &ButtonSet::x },      // Tilt        -> X
     { 21, &ButtonSet::mx },     // Select      -> ModX
     { 22, &ButtonSet::start },  // Start
+    { 6, &ButtonSet::z },        // Foot pedal -> Z
 };
 
 // Default button indices matching defaultPinMappings order
 static const uint8_t defaultButtonIndices[NUM_SG_BIND_SLOTS] = {
-    0, 14, 15, 1, 4, 12, 13, 6, 2, 9, 11
+    0, 14, 15, 1, 4, 12, 13, 6, 2, 9, 11, 4
 };
 
 // Active (mutable) pin mappings

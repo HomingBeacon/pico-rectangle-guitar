@@ -120,7 +120,7 @@ svg.guitar { width: 100%; height: auto; }
     <div class="panel guitar-panel">
         <h2>Guitar Layout</h2>
         <div class="guitar-visual">
-            <svg class="guitar" viewBox="0 0 520 280" xmlns="http://www.w3.org/2000/svg">
+            <svg class="guitar" viewBox="0 0 520 300" xmlns="http://www.w3.org/2000/svg">
                 <!-- Neck background -->
                 <rect x="10" y="40" width="360" height="200" rx="12" fill="#222" stroke="#444" stroke-width="1"/>
                 <!-- Fret markers -->
@@ -174,6 +174,10 @@ svg.guitar { width: 100%; height: auto; }
 
                 <circle class="fret" id="fret-10" data-slot="10" cx="475" cy="235" r="14" fill="#555"/>
                 <text class="fret-label" x="475" y="239" font-size="8">Start</text>
+
+                <!-- Foot Pedal -->
+                <rect class="fret" id="fret-11" data-slot="11" x="200" y="260" width="120" height="24" rx="6" fill="#555" stroke="#777" stroke-width="1"/>
+                <text class="fret-label" x="260" y="276" font-size="9">Foot Pedal</text>
             </svg>
         </div>
 
@@ -235,7 +239,7 @@ const CMD_RESET_WHAMMY_CAL = 0x05;
 const CMD_SET_BIND_PIN     = 0x06;
 const CMD_SET_PULL_MODE    = 0x07;
 
-const REPORT_SIZE = 32;
+const REPORT_SIZE = 64;
 
 const BUTTON_NAMES = [
     'A', 'B', 'X', 'Y', 'Z',
@@ -248,16 +252,16 @@ const BUTTON_NAMES = [
 const SLOT_NAMES = [
     'Green Fret', 'Red Fret', 'Yellow Fret', 'Blue Fret', 'Orange Fret',
     'Up Strum', 'Down Strum', 'R Button', 'Tilt',
-    'Select', 'Start'
+    'Select', 'Start', 'Foot Pedal'
 ];
 
 const SLOT_COLORS = [
     'green', 'red', 'yellow', 'blue', 'orange',
     'neutral', 'neutral', 'neutral', 'purple',
-    'neutral', 'neutral'
+    'neutral', 'neutral', 'neutral'
 ];
 
-const NUM_SLOTS = 11;
+const NUM_SLOTS = 12;
 
 let device = null;
 let connected = false;
@@ -509,7 +513,7 @@ async function disconnect() {
 
 function handleInputReport(event) {
     const data = new Uint8Array(event.data.buffer);
-    if (data.length < 31) return;
+    if (data.length < 34) return;
 
     // Byte 0: report type (0x01 = status)
     if (data[0] !== 0x01) return;
@@ -523,7 +527,7 @@ function handleInputReport(event) {
     const calHigh = data[3];
     const calLow = data[4];
 
-    // Bytes 5-26: binds (11 x 2 bytes: pin, buttonIndex|pullMode<<7)
+    // Bytes 5-28: binds (12 x 2 bytes: pin, buttonIndex|pullMode<<7)
     for (let i = 0; i < NUM_SLOTS; i++) {
         currentPins[i] = data[5 + i * 2];
         const raw = data[5 + i * 2 + 1];
@@ -531,16 +535,16 @@ function handleInputReport(event) {
         currentPullModes[i] = (raw >> 7) & 1;
     }
 
-    // Bytes 27-29: button state
-    const state0 = data[27];
-    const state1 = data[28];
-    const state2 = data[29];
+    // Bytes 29-31: button state
+    const state0 = data[29];
+    const state1 = data[30];
+    const state2 = data[31];
 
-    // Byte 30: raw GPIO scan (first pressed candidate pin, 0xFF if none)
-    detectedPressedPin = data[30];
+    // Byte 32: raw GPIO scan (first pressed candidate pin, 0xFF if none)
+    detectedPressedPin = data[32];
 
-    // Byte 31: binds configured flag
-    bindsConfigured = data[31] === 1;
+    // Byte 33: binds configured flag
+    bindsConfigured = data[33] === 1;
 
     // Auto-open wizard on first boot
     if (!firstBootHandled && connected) {

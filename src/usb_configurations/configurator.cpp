@@ -27,7 +27,7 @@ namespace Configurator {
 // Command acknowledgement
 #define ACK_REPORT           0x02
 
-#define REPORT_SIZE 32
+#define REPORT_SIZE 64
 
 static uint8_t statusReport[REPORT_SIZE];
 
@@ -74,14 +74,14 @@ static void buildStatusReport() {
     statusReport[3] = DACAlgorithms::MeleeSG::whammyHigh;
     statusReport[4] = DACAlgorithms::MeleeSG::whammyLow;
 
-    // Button bindings: 11 slots × 2 bytes (pin, buttonIndex | pullMode<<7)
+    // Button bindings: 12 slots × 2 bytes (pin, buttonIndex | pullMode<<7)
     for (int i = 0; i < NUM_SG_BIND_SLOTS; i++) {
         statusReport[5 + i * 2] = GpioToButtonSets::SG::getBindPin(i);
         uint8_t bi = GpioToButtonSets::SG::getBindButton(i);
         uint8_t pm = GpioToButtonSets::SG::getBindPullMode(i);
         statusReport[5 + i * 2 + 1] = bi | (pm << 7);
     }
-    // Bytes 5-26 = 11 × 2 = 22 bytes of bind data
+    // Bytes 5-28 = 12 × 2 = 24 bytes of bind data
 
     // Live button state (which buttons are currently pressed)
     GpioToButtonSets::SG::ButtonSet bs = GpioToButtonSets::SG::defaultConversion();
@@ -106,13 +106,13 @@ static void buildStatusReport() {
     if (bs.cRight) state2 |= (1 << 1);
     if (bs.cUp)    state2 |= (1 << 2);
     if (bs.cDown)  state2 |= (1 << 3);
-    statusReport[27] = state0;
-    statusReport[28] = state1;
-    statusReport[29] = state2;
+    statusReport[29] = state0;
+    statusReport[30] = state1;
+    statusReport[31] = state2;
 
-    // Byte 31: binds configured flag (1 = configured, 0 = first boot / unconfigured)
+    // Byte 33: binds configured flag (1 = configured, 0 = first boot / unconfigured)
     const auto* bindPage = Persistence::read<Persistence::Pages::SgBinds>();
-    statusReport[31] = (bindPage->configured == 1) ? 1 : 0;
+    statusReport[33] = (bindPage->configured == 1) ? 1 : 0;
 
     // Raw GPIO scan: report which candidate pins are currently pressed (low).
     // Used by the pin labeling wizard to detect which GPIO a physical input is on.
@@ -122,7 +122,7 @@ static void buildStatusReport() {
     uint32_t gpioState = sio_hw->gpio_in;
     // Find first pressed candidate pin, report its number (0xFF if none).
     // Check both active-low (pull-up) and active-high (pull-down) pins.
-    statusReport[30] = 0xFF;
+    statusReport[32] = 0xFF;
     for (unsigned i = 0; i < sizeof(candidatePins); i++) {
         uint8_t p = candidatePins[i];
         bool pinHigh = gpioState & (1u << p);
@@ -136,7 +136,7 @@ static void buildStatusReport() {
         }
         bool pressed = isPullDown ? pinHigh : !pinHigh;
         if (pressed) {
-            statusReport[30] = p;
+            statusReport[32] = p;
             break;
         }
     }

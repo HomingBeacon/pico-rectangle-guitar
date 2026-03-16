@@ -7,7 +7,7 @@
 namespace Persistence {
 namespace Pages {
 
-#define NUM_SG_BIND_SLOTS 11
+#define NUM_SG_BIND_SLOTS 12
 
 struct SgBinds {
     static const int index = (int) PageIndexes::SG_BINDS;
@@ -39,6 +39,7 @@ struct SgBinds {
 #define SLOT_TILT       8
 #define SLOT_SELECT     9
 #define SLOT_START      10
+#define SLOT_FOOT_PEDAL 11
 
 }
 }

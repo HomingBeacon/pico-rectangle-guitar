@@ -27,6 +27,9 @@ inline void led_init() {
 const uint8_t gcDataPin = 28;
 const uint8_t rumblePin = 11;
 
+// Set to false at runtime when rumblePin is used as an input (e.g. SG foot pedal)
+extern bool rumbleEnabled;
+
 #define USE_UART0 0
 
 #endif

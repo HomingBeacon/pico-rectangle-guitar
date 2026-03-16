@@ -810,7 +810,7 @@ void ep_out_handler(uint8_t *buf, uint16_t len) {
         epOutRecvReady = true;
     }
     // Default rumble handling
-    if (len == 5) {
+    if (rumbleEnabled && len == 5) {
         gpio_put(rumblePin, !!buf[1]); //TODO XInput support
     }
     usb_start_transfer(usb_get_endpoint_configuration(ep_out_addr()), NULL, epOutRearmSize);
@@ -1066,8 +1066,10 @@ void inner_enterMode(ConfigurationNoFunc config, int headroomUs) {
 
     /* Setup rumble */
 
-    gpio_init(rumblePin);
-    gpio_set_dir(rumblePin, GPIO_OUT);
+    if (rumbleEnabled) {
+        gpio_init(rumblePin);
+        gpio_set_dir(rumblePin, GPIO_OUT);
+    }
 }
 
 void enterMode(Configuration config, int headroomUs) {

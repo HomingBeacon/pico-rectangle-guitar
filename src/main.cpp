@@ -64,6 +64,8 @@ static bool __no_inline_not_in_flash_func(get_bootsel_button)() {
 }
 #endif
 
+bool rumbleEnabled = true;
+
 int main() {
     set_sys_clock_khz(125000, true);
    // set_sys_clock_khz(1000*us, true);
@@ -140,6 +142,7 @@ int main() {
     const auto* sgBinds = Persistence::read<Persistence::Pages::SgBinds>();
     uint8_t pinGreen, pinRed, pinYellow, pinBlue, pinOrange;
     uint8_t pinUpStrum, pinDownStrum, pinRButton, pinTilt, pinSelect, pinStart;
+    uint8_t pinFootPedal;
     if (sgBinds->configured == 1) {
         pinGreen    = sgBinds->entries[SLOT_GREEN].pin;
         pinRed      = sgBinds->entries[SLOT_RED].pin;
@@ -152,16 +155,26 @@ int main() {
         pinTilt     = sgBinds->entries[SLOT_TILT].pin;
         pinSelect   = sgBinds->entries[SLOT_SELECT].pin;
         pinStart    = sgBinds->entries[SLOT_START].pin;
+        pinFootPedal= sgBinds->entries[SLOT_FOOT_PEDAL].pin;
     } else {
         pinGreen = 2; pinRed = 3; pinYellow = 4; pinBlue = 5; pinOrange = 6;
         pinUpStrum = 7; pinDownStrum = 8; pinRButton = 15; pinTilt = 17;
-        pinSelect = 21; pinStart = 20;
+        pinSelect = 21; pinStart = 20; pinFootPedal = 6;
+    }
+    // Disable rumble if rumblePin is assigned to any input slot
+    {
+        uint8_t cfgPins[] = { pinGreen, pinRed, pinYellow, pinBlue, pinOrange,
+                              pinUpStrum, pinDownStrum, pinRButton, pinTilt,
+                              pinSelect, pinStart, pinFootPedal };
+        for (unsigned i = 0; i < sizeof(cfgPins); i++) {
+            if (cfgPins[i] == rumblePin) { rumbleEnabled = false; break; }
+        }
     }
     // Init configured pins (may differ from default modePins list)
     {
         uint8_t cfgPins[] = { pinGreen, pinRed, pinYellow, pinBlue, pinOrange,
                               pinUpStrum, pinDownStrum, pinRButton, pinTilt,
-                              pinSelect, pinStart };
+                              pinSelect, pinStart, pinFootPedal };
         for (unsigned i = 0; i < sizeof(cfgPins); i++) {
             gpio_init(cfgPins[i]);
             gpio_set_dir(cfgPins[i], GPIO_IN);

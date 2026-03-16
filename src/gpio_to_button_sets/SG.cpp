@@ -31,18 +31,18 @@ static const PinMapping defaultPinMappings[NUM_SG_BIND_SLOTS] = {
     { 3, &ButtonSet::up },      // Red fret    -> Left stick up
     { 4, &ButtonSet::down },    // Yellow fret -> Left stick down
     { 5, &ButtonSet::b },       // Blue fret   -> B
-    { 6, &ButtonSet::l },       // Orange fret -> L
+    { 6, &ButtonSet::z },       // Orange fret -> Z
     { 7, &ButtonSet::left },    // Up strum    -> Left stick left
     { 8, &ButtonSet::right },   // Down strum  -> Left stick right
     { 15, &ButtonSet::r },      // Button under whammy -> R
-    { 17, &ButtonSet::z },      // Tilt        -> Z
+    { 17, &ButtonSet::x },      // Tilt        -> X
     { 21, &ButtonSet::mx },     // Select      -> ModX
     { 22, &ButtonSet::start },  // Start
 };
 
 // Default button indices matching defaultPinMappings order
 static const uint8_t defaultButtonIndices[NUM_SG_BIND_SLOTS] = {
-    0, 14, 15, 1, 5, 12, 13, 6, 4, 9, 11
+    0, 14, 15, 1, 4, 12, 13, 6, 2, 9, 11
 };
 
 // Active (mutable) pin mappings

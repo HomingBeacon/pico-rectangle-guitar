@@ -13,6 +13,7 @@ struct WhammyCalibration {
     uint8_t configured;   // 1 = calibrated, 0xFF = uncalibrated (flash default)
     uint8_t whammyHigh;   // ADC value at max lightshield (first A press)
     uint8_t whammyLow;    // ADC value at min lightshield (second A press)
+    uint8_t disabled;     // 1 = whammy input disabled, 0xFF = enabled (flash default)
 };
 
 }

@@ -150,6 +150,12 @@ void resetBinds() {
     Persistence::commit(binds);
 }
 
+bool whammyDisabled = false;
+
+void setWhammyDisabled(bool disabled) {
+    whammyDisabled = disabled;
+}
+
 bool init = false;
 
 void initDefaultConversion() {
@@ -191,6 +197,7 @@ ButtonSet defaultConversion() {
 }
 
 uint8_t readWhammy() {
+    if (whammyDisabled) return 0;
     adc_select_input(0); // ADC0 = GP26
     uint16_t raw = adc_read(); // 12-bit: 0-4095
     uint8_t scaled = (uint8_t)(raw >> 4); // Scale to 0-255

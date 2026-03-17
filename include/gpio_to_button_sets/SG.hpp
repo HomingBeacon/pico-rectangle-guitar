@@ -13,6 +13,10 @@ void initDefaultConversion();
 ButtonSet defaultConversion();
 uint8_t readWhammy();
 
+// Whammy disable flag (set by configurator, stored in flash)
+extern bool whammyDisabled;
+void setWhammyDisabled(bool disabled);
+
 // Bind management (for configurator)
 void loadBinds();
 uint8_t getBindPin(int slot);

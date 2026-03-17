@@ -2,6 +2,7 @@
 #include "communication_protocols/joybus.hpp"
 #include "persistence/functions.hpp"
 #include "persistence/pages/whammy_calibration.hpp"
+#include "gpio_to_button_sets/SG.hpp"
 
 namespace DACAlgorithms {
 namespace MeleeSG {
@@ -29,6 +30,8 @@ void loadCalibration() {
         whammyDeadzone = (range * 5) / 100;
         if (whammyDeadzone < 1) whammyDeadzone = 1;
     }
+    // Load whammy disabled flag (0xFF = flash default = enabled)
+    GpioToButtonSets::SG::setWhammyDisabled(page->disabled == 1);
 }
 
 // Maps raw whammy value to full 0-255 analog range using calibration

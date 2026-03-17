@@ -206,6 +206,12 @@ svg.guitar { width: 100%; height: auto; }
         </div>
 
         <div class="cal-section">
+            <h2>Whammy Settings</h2>
+            <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 12px; padding: 8px 10px; background: #0a0a1a; border-radius: 8px;">
+                <label style="font-size: 13px; font-weight: 600; flex: 1;">Disable Whammy Input</label>
+                <input type="checkbox" id="whammyDisabledCb" onchange="onWhammyDisabledChange(this.checked)" disabled
+                    style="width: 18px; height: 18px; cursor: pointer;">
+            </div>
             <h2>Whammy Calibration</h2>
             <p style="font-size: 12px; color: #888; margin-bottom: 8px;">Set high/low values manually or use live capture.</p>
             <div class="cal-inputs">
@@ -238,6 +244,7 @@ const CMD_RESET_BINDS      = 0x04;
 const CMD_RESET_WHAMMY_CAL = 0x05;
 const CMD_SET_BIND_PIN     = 0x06;
 const CMD_SET_PULL_MODE    = 0x07;
+const CMD_SET_WHAMMY_DISABLED = 0x08;
 
 const REPORT_SIZE = 64;
 
@@ -271,6 +278,7 @@ let currentPins = new Array(NUM_SLOTS).fill(0);
 let currentPullModes = new Array(NUM_SLOTS).fill(0); // 0=pull-up, 1=pull-down
 let detectedPressedPin = 0xFF;
 let bindsConfigured = false;
+let whammyIsDisabled = false;
 let firstBootHandled = false;
 
 // --- Single-slot pin remap ---
@@ -513,7 +521,7 @@ async function disconnect() {
 
 function handleInputReport(event) {
     const data = new Uint8Array(event.data.buffer);
-    if (data.length < 34) return;
+    if (data.length < 35) return;
 
     // Byte 0: report type (0x01 = status)
     if (data[0] !== 0x01) return;
@@ -545,6 +553,9 @@ function handleInputReport(event) {
 
     // Byte 33: binds configured flag
     bindsConfigured = data[33] === 1;
+
+    // Byte 34: whammy disabled flag
+    whammyIsDisabled = data[34] === 1;
 
     // Auto-open wizard on first boot
     if (!firstBootHandled && connected) {
@@ -594,6 +605,10 @@ function handleInputReport(event) {
     document.getElementById('calStatus').textContent = calConfigured ? 'Yes' : 'No';
     document.getElementById('calHigh').textContent = calHigh;
     document.getElementById('calLow').textContent = calLow;
+
+    // Update whammy disabled checkbox
+    const cb = document.getElementById('whammyDisabledCb');
+    if (cb && cb !== document.activeElement) cb.checked = whammyIsDisabled;
 
     // Update bind list
     for (let i = 0; i < NUM_SLOTS; i++) {
@@ -675,6 +690,14 @@ async function saveWhammyCal() {
     await device.sendReport(0, data);
 }
 
+async function onWhammyDisabledChange(checked) {
+    if (!connected || !device) return;
+    const data = new Uint8Array(REPORT_SIZE);
+    data[0] = CMD_SET_WHAMMY_DISABLED;
+    data[1] = checked ? 1 : 0;
+    await device.sendReport(0, data);
+}
+
 async function resetWhammyCal() {
     if (!connected || !device) return;
     if (!confirm('Reset whammy calibration to defaults?')) return;
@@ -698,7 +721,7 @@ function updateUI() {
     }
 
     // Enable/disable controls
-    const controls = ['saveBindsBtn', 'resetBindsBtn', 'pinSetupBtn', 'capHighBtn', 'capLowBtn', 'saveCalBtn', 'resetCalBtn'];
+    const controls = ['saveBindsBtn', 'resetBindsBtn', 'pinSetupBtn', 'capHighBtn', 'capLowBtn', 'saveCalBtn', 'resetCalBtn', 'whammyDisabledCb'];
     controls.forEach(id => {
         document.getElementById(id).disabled = !connected;
     });

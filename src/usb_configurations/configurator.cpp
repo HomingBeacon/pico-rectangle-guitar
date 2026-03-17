@@ -21,6 +21,7 @@ namespace Configurator {
 #define CMD_RESET_WHAMMY_CAL 0x05
 #define CMD_SET_BIND_PIN     0x06
 #define CMD_SET_PULL_MODE    0x07
+#define CMD_SET_WHAMMY_DISABLED 0x08
 
 // Status report (IN reports to host)
 #define STATUS_REPORT        0x01
@@ -114,6 +115,9 @@ static void buildStatusReport() {
     const auto* bindPage = Persistence::read<Persistence::Pages::SgBinds>();
     statusReport[33] = (bindPage->configured == 1) ? 1 : 0;
 
+    // Byte 34: whammy disabled flag
+    statusReport[34] = GpioToButtonSets::SG::whammyDisabled ? 1 : 0;
+
     // Raw GPIO scan: report which candidate pins are currently pressed (low).
     // Used by the pin labeling wizard to detect which GPIO a physical input is on.
     // Pack as a bitmask: byte 30 = pins 0-7, byte 31 = pins 8-22 (shifted).
@@ -148,10 +152,12 @@ static void processCommand(volatile uint8_t *cmd, uint8_t len) {
     switch (cmd[0]) {
         case CMD_SET_WHAMMY_CAL: {
             if (len < 3) break;
+            const auto* prev = Persistence::read<Persistence::Pages::WhammyCalibration>();
             Persistence::Pages::WhammyCalibration cal = {};
             cal.configured = 1;
             cal.whammyHigh = cmd[1];
             cal.whammyLow = cmd[2];
+            cal.disabled = prev->disabled;
             Persistence::commit(cal);
             // Reload into runtime
             DACAlgorithms::MeleeSG::loadCalibration();
@@ -191,6 +197,17 @@ static void processCommand(volatile uint8_t *cmd, uint8_t len) {
             cal.configured = 0xFF;
             cal.whammyHigh = 255;
             cal.whammyLow = 0;
+            cal.disabled = 0xFF;
+            Persistence::commit(cal);
+            DACAlgorithms::MeleeSG::loadCalibration();
+            break;
+        }
+        case CMD_SET_WHAMMY_DISABLED: {
+            if (len < 2) break;
+            // Read current calibration, update disabled flag, write back
+            const auto* cur = Persistence::read<Persistence::Pages::WhammyCalibration>();
+            Persistence::Pages::WhammyCalibration cal = *cur;
+            cal.disabled = cmd[1] ? 1 : 0xFF;
             Persistence::commit(cal);
             DACAlgorithms::MeleeSG::loadCalibration();
             break;
